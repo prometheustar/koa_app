@@ -31,7 +31,7 @@ function searchProductValidator(info) {
 	// storeId
 	if (/^\d+$/.test(info.storeId + '')) {
 		sql += ans.condition === 'q' ? ' and' : ' where'
-		sql += ` s.storeId = ${info.storeId}`
+		sql += ` g.storeId = ${info.storeId}`
 		ans.condition = 'storeId'
 	}
 	// 商品分类

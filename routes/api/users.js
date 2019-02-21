@@ -95,7 +95,7 @@ router.post('/login', async ctx => {
 	// 查询数据库，账号是否存在
 	let query = `select * from tb_member where ${user.way}='${user.account}';`;
 	await db.executeReader(query)
-		.then(result => {
+		.then(async result => {
 			if (result.length === 0) {
 				// 没有该用户
 				return ctx.body = {success: false, code: '0001', message: '用户不存在'}
@@ -106,16 +106,21 @@ router.post('/login', async ctx => {
 				// 验证失败
 				return ctx.body = {success: false, code: '0001', message: '密码错误'}
 			}
+			let storeInfo = [];
+			if (dbuser.isBusiness.readInt8(0) === 1) {
+				storeInfo = await db.executeReader(`select _id as storeId,storeName,click,storeStatus,isAudit from tb_store where mid=${dbuser._id} and storeStatus=0;`)
+			}
 			// 查询成功返回 token
 			const payload = {
 				_id: dbuser._id, 
 				nickname: dbuser.nickname,
 				phone: tools.transPhone(dbuser.phone),
 				gender: dbuser.gender,
-				avatar: dbuser.avatar
+				avatar: dbuser.avatar,
+				storeId: 1
 			}
 			const token = jwt.sign(payload, keys.secretOrKey, {expiresIn: 3600});
-			ctx.body = {
+			const response = {
 				success: true,
 				code: '0000',
 				message: 'OK',
@@ -124,6 +129,11 @@ router.post('/login', async ctx => {
 					user: payload
 				}
 			}
+			if (storeInfo.length > 0) {
+				storeInfo[0].storeStatus = storeInfo[0].storeStatus.readInt8(0)
+				response.payload.store = storeInfo[0]
+			}
+			ctx.body = response
 		})
 		.catch(err => {
 			ctx.status = 400;

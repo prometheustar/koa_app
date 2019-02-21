@@ -117,7 +117,6 @@ router.get('/search_product', async ctx => {
  * @paramter storeIds(JsonArr)
  * @access 接口是公开的
  */
-
 router.get('/search_store', async ctx => {
 	const query = url.parse(ctx.request.url, true).query;
 	if (query.storeIds) {
@@ -133,7 +132,7 @@ router.get('/search_store', async ctx => {
 			let stores = await db.executeReader(sql)
 			// 删除禁用的店铺
 			for (let i = 0, len = stores.length; i < len; i++) {
-				stores[i].storeStatus = stores[i].storeStatus.readUInt8(0, true)
+				stores[i].storeStatus = stores[i].storeStatus.readInt8(0)
 				if (stores[i].storeStatus === 1) {
 					stores.splice(i, 1)
 					i--; len--
@@ -150,6 +149,47 @@ router.get('/search_store', async ctx => {
 	}
 })
 
+/**
+ * @route GET /api/goods/product_detail
+ * @desc 获得商品详情信息
+ * @paramter storeId(int)
+ * @access 接口是公开的
+ */
+router.get('/product_detail', async ctx => {
+	const query = url.parse(ctx.request.url, true).query
+	const goodId = query.goodId
+	if (!/^\d+/.test(goodId)) return ctx.body = {success: false, code: '0001', message: '接口参数错误'}
+	try {
+		const productDetail = { goodId: goodId }
+		const goodInfo = await db.executeReader(`select g._id,g.storeId,g.goodName,g.goodFrom,g.nowPrice,g.number,g.state,s.logo,s.storeName,s.nickname from tb_goods as g join tb_store as s on g.storeId=s._id where g._id=${goodId} and g.checkstate=1 and s.storeStatus=0;`)
+		if (goodInfo.length < 1) return ctx.body = {success: false, code: '0001', message: '商品不存在'}
+		if (goodInfo[0].state.readInt8(0) === 1) return ctx.body = {success: false, code: '0001', message: '商品已下架'}
+		delete goodInfo[0].state
+		productDetail.goodInfo = goodInfo[0]
+		productDetail.smaillPicture = await db.executeReader(`select link,pindex from tb_goodsmaillPicture where goodId=${goodId} order by pindex asc;`)
+		productDetail.infoPicture = await db.executeReader(`select link,pindex from tb_goodPicture where goodId=${goodId} order by pindex asc;`)
+		productDetail.comments = await db.executeReader(`select m.nickname,c.content,c.creaTime from tb_comments as c join tb_member as m on c.mid=m._id where c.goodId=${goodId} order by c.creaTime asc;`)
+		const specName = await db.executeReader(`select specName,indexx from tb_SpecName where goodId=${goodId} order by indexx asc;`)
+		if (specName.length > 0) {
+			productDetail.specName = specName
+			productDetail.specValue = await db.executeReader(`select specValue,indexx,specNameIndex from tb_SpecValue where goodId=${goodId} order by indexx asc;`)
+			productDetail.specConfig = await db.executeReader(`select detailIndex,specNameIndex,specValueIndex from tb_goodSpecConfig  where goodId=${goodId};`)
+		}
+		const goodDetail = await db.executeReader(`select _id,amount,price,indexx,state,isDisable from tb_goodDetail where goodId=${goodId} order by indexx asc;`)
+		for (let len = goodDetail.length-1; len >= 0; len--) {
+			if (Buffer.isBuffer(goodDetail[len].state))
+				goodDetail[len].state = goodDetail[len].state.readInt8(0)
+			if (Buffer.isBuffer(goodDetail[len].isDisable))
+				goodDetail[len].isDisable = goodDetail[len].isDisable.readInt8(0)
+		}
+		productDetail.goodDetail = goodDetail
+		ctx.body = {success:true, code: '0000', message: 'OK', payload: productDetail}
+		
+	}catch(err) {
+		console.error('/api/goods/product_detail', err.message)
+		ctx.body = {success: false, code: '9999', message: err.message}
+	}
+})
 
 /**
  * @route POST(formData) /api/goods/add_product
@@ -298,5 +338,13 @@ router.post('/add_product', koaBody({ multipart: true }), async ctx => {
 	}
 })
 
+router.get('/test', async ctx => {
+	const ans = await db.executeReaderMatch({
+		goods: 'select * from tb_goods;',
+		member: 'select * from tb_member;'
+	})
+	console.log(ans);
+	ctx.body = ans
+})
 
 module.exports = router.routes();
