@@ -20,21 +20,14 @@ const pool = mysql.createPool({
  * 传入 select sql语句
  * 返回查询结果集  对象数组
  */
-function executeReader(sql_str, callback) {
+function executeReader(sql_str) {
 	return new Promise((resolve, reject) => {
 		// 获得连接
 		pool.getConnection((err, connection) => {
-			if (err) {
-				callback && callback(err)
-				return reject(err)
-			}
+			if (err) return reject(err)
 			connection.query(sql_str, (err, results, _) => {
 				connection.release();  // 释放连接回连接池
-				if (err) {
-					callback && callback(err)
-					return reject(err)
-				}
-				callback && callback(null, results)
+				if (err) return reject(err)
 				resolve(results);
 			});
 		});
@@ -42,11 +35,11 @@ function executeReader(sql_str, callback) {
 }
 
 /**
- * executeReaderMatch
+ * executeReaderMany
  * 传入对象，{ product: 'select xx' }
  * 返回结果集
  */
-function executeReaderMatch(sql_strs) {
+function executeReaderMany(sql_strs) {
 	return new Promise((resolve, reject) => {
 		let key;
 		let results = {};
@@ -92,10 +85,45 @@ function executeNoQuery(sql_str) {
 	});
 }
 
+/**
+ * executeNoQueryMany
+ * 传入对象，{ product: 'select xx' }
+ * 返回受影响的行数对象
+ */
+function executeNoQueryMany(sql_strs) {
+	return new Promise((resolve, reject) => {
+		let key;
+		let results = {};
+		for (key in sql_strs) {
+			(function(){
+				const sql_key = key
+				// 获得连接
+				pool.getConnection((err, connection) => {
+					if (err) return reject(err);
+					connection.query(sql_strs[sql_key], (err, ans, _) => {
+						connection.release();  // 释放连接回连接池
+						if (err) return reject(err);
+						results[sql_key] = ans.affectedRows
+						end = true
+						for (let i in sql_strs) {
+							if (results[i] === undefined) {
+								end = false
+								break;
+							}
+						}
+						if (end) resolve(results);
+					});
+				});
+			}())
+		}
+	})
+}
+
 module.exports = {
 	executeReader,
 	executeNoQuery,
-	executeReaderMatch
+	executeReaderMany,
+	executeNoQueryMany
 }
 
 /*

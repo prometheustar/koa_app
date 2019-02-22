@@ -14,7 +14,7 @@ const { moveFile, randomStr } = require('../../config/tools')
 /**
  * @route GET /api/goods/type
  * @desc 获得分类信息
- * @paramter type=big   type=smaill & (int)bigid   type=detail & (int)detailId
+ * @paramter type=big  |  type=smaill & (int)bigid  |  type=detail & (int)detailId
  * @access 接口是公开的
  */
 router.get('/type', async ctx => {
@@ -166,24 +166,32 @@ router.get('/product_detail', async ctx => {
 		if (goodInfo[0].state.readInt8(0) === 1) return ctx.body = {success: false, code: '0001', message: '商品已下架'}
 		delete goodInfo[0].state
 		productDetail.goodInfo = goodInfo[0]
-		productDetail.smaillPicture = await db.executeReader(`select link,pindex from tb_goodsmaillPicture where goodId=${goodId} order by pindex asc;`)
-		productDetail.infoPicture = await db.executeReader(`select link,pindex from tb_goodPicture where goodId=${goodId} order by pindex asc;`)
-		productDetail.comments = await db.executeReader(`select m.nickname,c.content,c.creaTime from tb_comments as c join tb_member as m on c.mid=m._id where c.goodId=${goodId} order by c.creaTime asc;`)
-		const specName = await db.executeReader(`select specName,indexx from tb_SpecName where goodId=${goodId} order by indexx asc;`)
+		const result = await db.executeReaderMany({
+			smaillPicture: `select link,pindex from tb_goodsmaillPicture where goodId=${goodId} order by pindex asc;`,
+			infoPicture: `select link,pindex from tb_goodPicture where goodId=${goodId} order by pindex asc;`,
+			comments: `select m.nickname,c.content,c.creaTime from tb_comments as c join tb_member as m on c.mid=m._id where c.goodId=${goodId} order by c.creaTime asc;`,
+			specName: `select specName,indexx from tb_SpecName where goodId=${goodId} order by indexx asc;`,
+			goodDetail: `select _id,amount,price,indexx,state,isDisable from tb_goodDetail where goodId=${goodId} order by indexx asc;`
+		})
+		const specName = result.specName
 		if (specName.length > 0) {
+			// 商品有属性分类
 			productDetail.specName = specName
-			productDetail.specValue = await db.executeReader(`select specValue,indexx,specNameIndex from tb_SpecValue where goodId=${goodId} order by indexx asc;`)
-			productDetail.specConfig = await db.executeReader(`select detailIndex,specNameIndex,specValueIndex from tb_goodSpecConfig  where goodId=${goodId};`)
+			const specInfo = await db.executeReaderMany({
+				specValue: `select specValue,indexx,specNameIndex from tb_SpecValue where goodId=${goodId} order by indexx asc;`,
+				specConfig: `select detailIndex,specNameIndex,specValueIndex from tb_goodSpecConfig  where goodId=${goodId};`
+			})
+			result.specValue = specInfo.specValue
+			result.specConfig = specInfo.specConfig
 		}
-		const goodDetail = await db.executeReader(`select _id,amount,price,indexx,state,isDisable from tb_goodDetail where goodId=${goodId} order by indexx asc;`)
+		const goodDetail = result.goodDetail
 		for (let len = goodDetail.length-1; len >= 0; len--) {
 			if (Buffer.isBuffer(goodDetail[len].state))
 				goodDetail[len].state = goodDetail[len].state.readInt8(0)
 			if (Buffer.isBuffer(goodDetail[len].isDisable))
 				goodDetail[len].isDisable = goodDetail[len].isDisable.readInt8(0)
 		}
-		productDetail.goodDetail = goodDetail
-		ctx.body = {success:true, code: '0000', message: 'OK', payload: productDetail}
+		ctx.body = {success:true, code: '0000', message: 'OK', payload: {...productDetail, ...result}}
 		
 	}catch(err) {
 		console.error('/api/goods/product_detail', err.message)
@@ -339,9 +347,9 @@ router.post('/add_product', koaBody({ multipart: true }), async ctx => {
 })
 
 router.get('/test', async ctx => {
-	const ans = await db.executeReaderMatch({
-		goods: 'select * from tb_goods;',
-		member: 'select * from tb_member;'
+	const ans = await db.executeNoQueryMany({
+		goodDetail: 'update tb_goodDetail set price=11799 where _id=2;',
+		goodDetail2: 'update tb_goodDetail set price=12799 where _id=3;'
 	})
 	console.log(ans);
 	ctx.body = ans

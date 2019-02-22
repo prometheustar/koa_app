@@ -194,7 +194,7 @@ router.post('/phonelogin', async ctx => {
 })
 
 /**
- * @route GET api/users/nickname
+ * @route POST api/users/nickname
  * @desc 传入名字 nickname, 查询数据库中是否重复
  * @access 接口是公开的
  */
@@ -224,5 +224,23 @@ router.post('/nickname', async ctx => {
 		});
 });
 
+/**
+ * @route GET /api/users/nickname
+ * @desc 传入 memberId ，查询收货地址
+ * @access 携带 token 访问
+ */
+router.post('/address', async ctx => {
+	console.log(ctx.request.body)
+	if (!ctx.jwt.passport) return ctx.body = {success: false, message: '没有该接口的访问权限', code: '1002'}
+	const memberId = ctx.request.body.memberId
+	if (!/^\d+$/.test(memberId)) return ctx.body = {success: false, message: '参数为空或格式错误', code: '1004'}
+	try {
+		const address = await db.executeReader(`select mid, receiveName, address,phone,postcode from tb_address where mid=${memberId};`)
+		ctx.body = {success: true, code: '0000', message: 'OK', payload: address}
+	}catch(err) {
+		console.error('/api/users/nickname', err.message)
+		ctx.body = {success: false, code: '9999', message: err.message}
+	}
+})
 
 module.exports = router.routes()

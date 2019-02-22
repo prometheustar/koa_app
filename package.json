@@ -13,6 +13,7 @@
   "dependencies": {
     "@alicloud/sms-sdk": "^1.1.6",
     "bcryptjs": "^2.4.3",
+    "decimal.js-light": "^2.5.0",
     "jsonwebtoken": "^8.4.0",
     "koa": "^2.6.2",
     "koa-body": "^4.0.8",
