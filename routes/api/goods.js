@@ -158,7 +158,7 @@ router.get('/search_store', async ctx => {
 router.get('/product_detail', async ctx => {
 	const query = url.parse(ctx.request.url, true).query
 	const goodId = query.goodId
-	if (!/^\d+/.test(goodId)) return ctx.body = {success: false, code: '0001', message: '接口参数错误'}
+	if (!/^\d+$/.test(goodId)) return ctx.body = {success: false, code: '0001', message: '接口参数错误'}
 	try {
 		const productDetail = { goodId: goodId }
 		const goodInfo = await db.executeReader(`select g._id,g.storeId,g.goodName,g.goodFrom,g.nowPrice,g.number,g.state,s.logo,s.storeName,s.nickname from tb_goods as g join tb_store as s on g.storeId=s._id where g._id=${goodId} and g.checkstate=1 and s.storeStatus=0;`)
