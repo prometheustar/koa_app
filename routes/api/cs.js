@@ -57,6 +57,7 @@ router.post('/register', async ctx => {
 			ctx.bdoy = {success: false, code: '9999', message: '数据库插入错误'}
 		}
 	}catch(err){
+		console.error('/api/cs/register', err.message)
 		ctx.body = {
 			success: false,
 			code: '9999',
@@ -103,7 +104,7 @@ router.post('/login', async ctx => {
 			}
 		}
 	}catch(err) {
-		console.error(err);
+		console.error('/api/cs/login', err.message);
 		ctx.body = {success: false, message: err.message, code: '9999'}
 	}
 });

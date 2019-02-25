@@ -15,6 +15,10 @@ function isInt(value) {
 	return /^\d+$/.test(value)
 }
 
+function isNumber(value) {
+	return /^\d+(\.\d+|)$/.test(value)
+}
+
 function isBit(value) {
 	return /^[01]$/.test(value)
 }
@@ -22,32 +26,32 @@ function isBit(value) {
 function searchProductValidator(info) {
 	let ans = { isvalid: false, condition: '', message: '接口参数错误' }
 	if (typeof(info) !== 'object') return ans;
-	let sql = "select g._id,g.goodName,g.logo,g.nowPrice,g.number,g.detailId,g.storeId,s.storeName,s.mid from tb_goods as g join tb_store as s on g.storeId=s._id";
+	let sql = "select g._id,g.goodName,g.logo,g.nowPrice,g.number,g.detailId,g.storeId,s.storeName,s.mid from tb_goods as g join tb_store as s on g.storeId=s._id where g.checkstate=1 and s.isAudit=1 and s.storeStatus=0";
 	// 关键字搜索
 	if (info.q) {
-		sql += ` where g.goodName like '%${info.q}%'`
+		sql += ` and g.goodName like '%${info.q}%'`
 		ans.condition = 'q'
 	}
 	// storeId
 	if (/^\d+$/.test(info.storeId + '')) {
-		sql += ans.condition === 'q' ? ' and' : ' where'
-		sql += ` g.storeId = ${info.storeId}`
+		// sql += ans.condition === 'q' ? ' and' : ' where'
+		sql += ` and g.storeId = ${info.storeId}`
 		ans.condition = 'storeId'
 	}
 	// 商品分类
 	if (/^\d+$/.test(info.detailId + '')) {
-		sql += (ans.condition === 'q' || ans.condition === 'storeId') ? ' and' : ' where'
-		sql += ` g.detailId = ${info.detailId}`
+		// sql += (ans.condition === 'q' || ans.condition === 'storeId') ? ' and' : ' where'
+		sql += ` and g.detailId = ${info.detailId}`
 		ans.condition = 'classify'
 
 	}else if (/^\d+$/.test(info.smaillId + '')) {
-		sql += (ans.condition === 'q' || ans.condition === 'storeId') ? ' and' : ' where'
-		sql += ` g.smaillId = ${info.smaillId}`
+		// sql += (ans.condition === 'q' || ans.condition === 'storeId') ? ' and' : ' where'
+		sql += ` and g.smaillId = ${info.smaillId}`
 		ans.condition = 'classify'
 
 	}else if (/^\d+$/.test(info.bigId + '')) {
-		sql += (ans.condition === 'q' || ans.condition === 'storeId') ? ' and' : ' where'
-		sql += ` g.bigId = ${info.bigId}`
+		// sql += (ans.condition === 'q' || ans.condition === 'storeId') ? ' and' : ' where'
+		sql += ` and g.bigId = ${info.bigId}`
 		ans.condition = 'classify'
 	}
 	// 参数不对
@@ -88,7 +92,7 @@ function addProductValidator(info, files) {
 	if (isEmpty(info) || isEmpty(files)) {
 		return ans
 	}
-	if (!isInt(info.detailId) || !isInt(info.storeId) || isEmpty(info.goodName) || isEmpty(info.nowPrice) ||  isEmpty(info.goodFrom)) {
+	if (!isInt(info.detailId) || !isInt(info.storeId) || isEmpty(info.goodName) ||  isEmpty(info.goodFrom)) {
 		return ans
 	}
 	if (!isImg(files.logo)) {
@@ -122,13 +126,14 @@ function addProductValidator(info, files) {
 		return ans
 	}
 	// 商品没有属性分类
-	if (info.specName === undefined && 
+	if (isEmpty(info.specName) && 
 		Array.isArray(info.goodDetailInfo) &&
-		info.goodDetailInfo.length === 1 &&
+		info.goodDetailInfo.length > 0 &&
 		typeof(info.goodDetailInfo[0]) === 'object' &&
 		isInt(info.goodDetailInfo[0].amount) &&
-		isInt(info.goodDetailInfo[0].price)
+		isNumber(info.goodDetailInfo[0].price)
 		) {
+		info.nowPrice = info.goodDetailInfo[0].price
 		ans.isvalid = true
 		ans.message = 'OK'
 		return ans
@@ -141,13 +146,19 @@ function addProductValidator(info, files) {
 			) {
 			return ans
 		}
+		let nowPrice = 99999999;
 		for (let i = 0, len = info.goodDetailInfo.length; i < len; i++) {
 			if (!(typeof(info.goodDetailInfo[i]) === 'object' &&
-				(info.goodDetailInfo[i].isDisable || (isInt(info.goodDetailInfo[i].amount) && isInt(info.goodDetailInfo[i].price))))
+				(isInt(info.goodDetailInfo[i].amount) && isNumber(info.goodDetailInfo[i].price)))
 			) {
 				return ans
+			}else {
+				if (info.goodDetailInfo[i].price < nowPrice) {
+					nowPrice = info.goodDetailInfo[i].price
+				}
 			}
 		}
+		info.nowPrice = nowPrice
 		let detailLen = 1;
 		for (let i = 0, len = info.specValue.length; i < len; i++) {
 			if (!Array.isArray(info.specValue[i])) {

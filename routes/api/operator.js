@@ -62,9 +62,9 @@ router.post('/sms', async ctx => {
 				});
 		}
 	}catch (err) {
-		console.error('api/operator/sms', err.message)
+		console.error('/api/operator/sms', err.message)
 		ctx.status = 400;
-		ctx.body = {success: false, code: '0002', msg: 'Fail', error: err }
+		ctx.body = {success: false, code: '9999', msg: 'Fail', error: err.message }
 	}
 })
 
@@ -97,13 +97,13 @@ router.post('/testsms', async ctx => {
 			}
 		})
 		.catch(err => {
-			console.error('/sms', err.message);
+			console.error('/api/operator/testsms', err.message);
 			ctx.status = 400;
 			ctx.body = {
 				success: false,
 				code: '0002',
 				msg: 'Fail',
-				error: err
+				error: err.message
 			}
 		});
 })
@@ -120,6 +120,7 @@ function readFile(url) {
 	})
 }
 
+// 文件上传工具
 router.get('/files', async ctx => {
 	ctx.body = await readFile(path.join(__dirname, '../../views/files.html'))
 })
@@ -135,10 +136,10 @@ router.post('/files', koaBody({ multipart: true }), async ctx => {
 	const fileName = ctx.request.files.file.name
 	try {
 		const ans = await moveFile(filePath, path.join(__dirname, '../../files') + "/" + fileName);
-		ctx.body = { success: true, message: ans }
+		ctx.body = { success: true, code: '0000', message: ans }
 	}catch (err) {
-		console.error(err.message)
-		ctx.body = { success: false, message: err.message }
+		console.error('/api/operator/files', err.message)
+		ctx.body = { success: false, code:'9999', message: err.message }
 	}
 	
 })

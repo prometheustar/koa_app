@@ -52,7 +52,7 @@ router.get('/type', async ctx => {
 		}
 		ctx.body = {success: false, code: '0001', message: '接口参数错误'}
 	}catch(err) {
-		console.error(err);
+		console.error('/api/goods/type', err.message);
 		ctx.body = {success: false, code: '9999', message: err.message}
 	}
 });
@@ -82,7 +82,7 @@ router.get('/search_product', async ctx => {
 		let goods = await db.executeReader(search.sql);
 		ctx.body = {success:true, code: '0000', message: 'OK', payload: goods}
 	}catch(err) {
-		console.error(err.message)
+		console.error('/api/goods/search_product',err.message)
 		ctx.body = {success: false, code: '9999', message: err.message}
 	}
 	/*
@@ -141,7 +141,7 @@ router.get('/search_store', async ctx => {
 			ctx.body = {success:true, code: '0000', message: 'OK', payload: stores}
 
 		}catch(err) {
-			console.error(err.message)
+			console.error('/api/goods/search_store', err.message)
 			ctx.body = {success: false, code: '9999', message: err.message}
 		}
 	}else {
@@ -213,6 +213,8 @@ router.get('/product_detail', async ctx => {
 router.post('/add_product', koaBody({ multipart: true }), async ctx => {
 	const info = ctx.request.body
 	const files = ctx.request.files
+	// console.log(info)
+	// console.log(files)
 	const ans = addProductValidator(info, files)
 	if (!ans.isvalid) {
 		return ctx.body = {success: false, code: '0001', message: '接口参数错误'}
@@ -255,9 +257,6 @@ router.post('/add_product', koaBody({ multipart: true }), async ctx => {
 			insertSmaillPicture += (i === len -1) ? ';' : ','
 		}
 
-		const smaillPictureAns = await db.executeNoQuery(insertSmaillPicture)
-		if (smaillPictureAns < 1) return ctx.body = {success: false, code: '0001', message: '未知错误3'};
-
 		// 插入 tb_goodPicture  表数据
 		const infoPicture = []
 		for (let i=0, len=files.goodInfoPicture.length; i<len; i++) {
@@ -270,8 +269,6 @@ router.post('/add_product', koaBody({ multipart: true }), async ctx => {
 			insertGoodInfoPicture += `(${goodId},'${infoPicture[i].imgName}',${infoPicture[i].index})`
 			insertGoodInfoPicture += (i === len -1) ? ';' : ','
 		}
-		const infoPictureAns = await db.executeNoQuery(insertGoodInfoPicture)
-		if (infoPictureAns < 1) return ctx.body = {success: false, code: '0001', message: '未知错误4'};
 		
 		// 插入 tb_specName, tb_SpecValue,tb_goodDetail,tb_goodSpecConfig 数据
 		let insertGoodDetail = 'insert into tb_goodDetail(goodId,isDisable, amount, price, indexx) values'
@@ -327,21 +324,31 @@ router.post('/add_product', koaBody({ multipart: true }), async ctx => {
 				}
 				countArr[countArr.length-1](true)
 			}
-			const specNameAns = await db.executeNoQuery(insertSpecName)
-			if (specNameAns < 1) return ctx.body = {success: false, code: '0001', message: '未知错误6'};
-			const specValueAns = await db.executeNoQuery(insertSpecValue)
-			if (specValueAns < 1) return ctx.body = {success: false, code: '0001', message: '未知错误7'};
-			const specConfigAns = await db.executeNoQuery(insertSpecConfig)
-			if (specConfigAns < 1) return ctx.body = {success: false, code: '0001', message: '未知错误8'};
+			// 执行 SQL 语句插入数据
+			const specInsertAns = await db.executeNoQueryMany({
+				specName: insertSpecName,
+				specValue: insertSpecValue,
+				specConfig: insertSpecConfig
+			})
+			if (specInsertAns.specName < 1 || specInsertAns.specValue < 1 || specInsertAns.specConfig < 1) {
+				return ctx.body = {success: false, code: '0001', message: '未知错误8'}
+			}
 		}else {
 			// 无属性分类
-			insertGoodDetail += `(${goodId},0,${info.goodDetailInfo[0].amount},${info.goodDetailInfo[0].price});`
+			insertGoodDetail += `(${goodId},0,${info.goodDetailInfo[0].amount},${info.goodDetailInfo[0].price},1);`
 		}
-		const goodDetailAns = await db.executeNoQuery(insertGoodDetail)
-		if (goodDetailAns < 1) return ctx.body = {success: false, code: '0001', message: '未知错误8'};
+		// 执行 SQL 语句插入数据
+		const insertAns = await db.executeNoQueryMany({
+				smaillPicture: insertSmaillPicture,
+				infoPicture: insertGoodInfoPicture,
+				goodDetail: insertGoodDetail,
+			})
+		if (insertAns.smaillPicture < 1 || insertAns.infoPicture < 1 || insertAns.goodDetail < 1) {
+			return ctx.body = {success: false, code: '0001', message: '未知错误8'}
+		}
 		ctx.body = {success: true, code: '0000', message: 'OK'}
 	}catch (err) {
-		console.error(err.message)
+		console.error('/api/goods/add_product', err.message)
 		ctx.body = {success: false, code: '9999', message: err.message}
 	}
 })

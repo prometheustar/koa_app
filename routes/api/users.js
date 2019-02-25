@@ -74,7 +74,7 @@ router.post('/register', async ctx => {
 			}
 		};
 	}catch(err) {
-		console.error('register', err.message);
+		console.error('/api/users/register', err.message);
 		ctx.status = 400;
 		ctx.body = {success: false, code: '9999', message: err.message};
 	}
@@ -119,7 +119,7 @@ router.post('/login', async ctx => {
 				avatar: dbuser.avatar,
 				storeId: 1
 			}
-			const token = jwt.sign(payload, keys.secretOrKey, {expiresIn: 3600});
+			const token = jwt.sign(payload, keys.tokenKey, {expiresIn: 3600});
 			const response = {
 				success: true,
 				code: '0000',
@@ -136,6 +136,7 @@ router.post('/login', async ctx => {
 			ctx.body = response
 		})
 		.catch(err => {
+			console.error('/api/users/login', err.message)
 			ctx.status = 400;
 			ctx.body = {success: false, code: '9999', message: err.message};
 		});
@@ -187,7 +188,7 @@ router.post('/phonelogin', async ctx => {
 		}
 
 	}catch(err) {
-		console.error(err.message);
+		console.error('/api/users/phonelogin', err.message);
 		ctx.status = 400;
 		ctx.body = {success: false, code: '9999', message: 'server busy!'};
 	}
@@ -220,6 +221,7 @@ router.post('/nickname', async ctx => {
 			};
 		})
 		.catch(err => {
+			console.error('/api/users/nickname', err.message)
 			ctx.body = {success: false, code: '9999', message: err.message};
 		});
 });
@@ -238,7 +240,7 @@ router.post('/address', async ctx => {
 		const address = await db.executeReader(`select mid, receiveName, address,phone,postcode from tb_address where mid=${memberId};`)
 		ctx.body = {success: true, code: '0000', message: 'OK', payload: address}
 	}catch(err) {
-		console.error('/api/users/nickname', err.message)
+		console.error('/api/users/address', err.message)
 		ctx.body = {success: false, code: '9999', message: err.message}
 	}
 })

@@ -50,7 +50,7 @@ app.use(async function passportToken(ctx, next) {
             ctx.jwt = {passport: false, message: 'empty token'}
         }else {
             // 存在，解析
-            jwt.verify(token, keys.secretOrKey, (err, decoded) => {
+            jwt.verify(token, keys.tokenKey, (err, decoded) => {
                 if (err) {
                     ctx.jwt = {passport: false, message: err.message};
                     return;
@@ -60,7 +60,7 @@ app.use(async function passportToken(ctx, next) {
         }
     }
     catch(err){
-        console.log(err);
+        console.log('passportToken', err);
         ctx.jwt = {passport: false, message: err.message};
     }
     await next();
