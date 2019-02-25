@@ -79,7 +79,7 @@ router.use('/api/cs', cs);
 // 配置路由
 app.use(router.routes()).use(router.allowedMethods());
 
-const port = process.env.PORT || 5000
+const port = process.env.PORT || 80
 app.listen(port, () => {
     console.log('|--------------------------------|');
 	console.log('running...' + port);
