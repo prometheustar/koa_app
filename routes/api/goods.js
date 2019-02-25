@@ -213,11 +213,9 @@ router.get('/product_detail', async ctx => {
 router.post('/add_product', koaBody({ multipart: true }), async ctx => {
 	const info = ctx.request.body
 	const files = ctx.request.files
-	// console.log(info)
-	// console.log(files)
 	const ans = addProductValidator(info, files)
 	if (!ans.isvalid) {
-		return ctx.body = {success: false, code: '0001', message: '接口参数错误'}
+		return ctx.body = {success: false, code: '0001', message: ans.message}
 	}
 	try {
 		// 查询商品已存在
@@ -353,13 +351,9 @@ router.post('/add_product', koaBody({ multipart: true }), async ctx => {
 	}
 })
 
-router.get('/test', async ctx => {
-	const ans = await db.executeNoQueryMany({
-		goodDetail: 'update tb_goodDetail set price=11799 where _id=2;',
-		goodDetail2: 'update tb_goodDetail set price=12799 where _id=3;'
-	})
-	console.log(ans);
-	ctx.body = ans
+router.post('/test', koaBody({ multipart: true }), async ctx => {
+	const files = ctx.request.files
+
 })
 
 module.exports = router.routes();

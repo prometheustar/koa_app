@@ -164,7 +164,7 @@ router.post('/phonelogin', async ctx => {
 		if (dbsms.length === 0) {
 			return ctx.body = {success: false, code: '0001', message: '手机号无记录'};
 		}
-		const md5sms = md5(md5(user.sms_code + keys.secretOrKey) + user.phone);
+		const md5sms = md5(md5(user.sms_code + keys.tokenKey) + user.phone);
 		if (md5sms !== dbsms[0].smsCode) {
 			return ctx.body = {success: false, code: '0001', message: '验证码错误'};
 		}
@@ -176,7 +176,7 @@ router.post('/phonelogin', async ctx => {
 			gender: dbuser[0].gender,
 			avatar: dbuser[0].avatar
 		}
-		const token = jwt.sign(payload, keys.secretOrKey, {expiresIn: 3600});
+		const token = jwt.sign(payload, keys.tokenKey, {expiresIn: 3600});
 		ctx.body = {
 			success: true,
 			code: '0000',

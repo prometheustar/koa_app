@@ -84,7 +84,7 @@ function searchProductValidator(info) {
  * tb_goodSpecConfig 关系映射表，自动生成
  */
 function isImg(file) {
-	return !isEmpty(file) && typeof(file.path) === "string" && /\.(jpg|jpeg|png|gif|svg)$/i.test(file.name)
+	return !isEmpty(file) && typeof(file.path) === "string" && /\.(jpg|jpeg|png|gif|svg)$/i.test(file.name) && file.size < 3*1024*1024
 }
 
 function addProductValidator(info, files) {
@@ -96,12 +96,13 @@ function addProductValidator(info, files) {
 		return ans
 	}
 	if (!isImg(files.logo)) {
+		ans.message = '图片格式有误，支持3M以内的图片'; 
 		return ans
 	}
 	if (typeof(files.goodSmaillPicture) === 'object') {
 		files.goodSmaillPicture = Array.isArray(files.goodSmaillPicture) ? files.goodSmaillPicture : [files.goodSmaillPicture]
 		for (let i = 0, len = files.goodSmaillPicture.length; i < len; i++) {
-			if (!isImg(files.goodSmaillPicture[i])) { return ans }
+			if (!isImg(files.goodSmaillPicture[i])) { ans.message = '图片格式有误，支持3M以内的图片'; return ans }
 		}
 	}else {
 		return ans
@@ -109,7 +110,7 @@ function addProductValidator(info, files) {
 	if (typeof(files.goodInfoPicture) === 'object') {
 		files.goodInfoPicture = Array.isArray(files.goodInfoPicture) ? files.goodInfoPicture : [files.goodInfoPicture]
 		for (let i = 0, len = files.goodInfoPicture.length; i < len; i++) {
-			if (!isImg(files.goodInfoPicture[i])) { return ans }
+			if (!isImg(files.goodInfoPicture[i])) { ans.message = '图片格式有误，支持3M以内的图片';  return ans }
 		}
 	}else {
 		return ans
