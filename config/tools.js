@@ -45,15 +45,17 @@ function moveFile(before, next) {
 		   writeStream.end()
 		   // 删除缓存的文件
 		   fs.unlink(before, (err) => {
-				if (err) {console.error('rmfile', err.message)}
+				if (err) {console.error('moveFile/rmfile', err.message)}
 		   })
 		   resolve(buf);
 		});
 
 		readerStream.on('error', (err) => {
+			console.error('moveFile/readerStream', err)
 			reject(err)
 		})
 		writeStream.on('error', (err) => {
+			console.error('moveFile/writeStream', err)
 			reject(err)
 		})
 	})

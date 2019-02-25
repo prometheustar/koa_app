@@ -241,11 +241,11 @@ router.post('/add_product', koaBody({ multipart: true }), async ctx => {
 		for (let i=0, len=files.goodSmaillPicture.length; i<len; i++) {
 			let imgName = getImgName()
 			let buf = await moveFile(files.goodSmaillPicture[i].path, path.join(__dirname, '../../views/image/goods/smaill/' + imgName))
-			sharp(buf).resize({ height:430, fit:'inside' }).toFile(path.join(__dirname, `../../views/image/goods/smaill/${imgName}_430x430q90.jpg`), (err, info) => {
-				if (err) console.error(err)
+			sharp(buf).resize({ height:430, fit:'inside1' }).toFile(path.join(__dirname, `../../views/image/goods/smaill/${imgName}_430x430q90.jpg`), (err, info) => {
+				if (err) console.error('add_product/sharp', err)
 			})
 			sharp(buf).resize({ height:60, fit:'inside' }).toFile(path.join(__dirname, `../../views/image/goods/smaill/${imgName}_60x60q90.jpg`), (err, info) => {
-				if (err) console.error(err)
+				if (err) console.error('add_product/sharp2', err)
 			})
 			smaillPicture.push({imgName, index: i+1})
 		}
