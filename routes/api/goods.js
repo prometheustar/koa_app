@@ -241,7 +241,7 @@ router.post('/add_product', koaBody({ multipart: true }), async ctx => {
 		for (let i=0, len=files.goodSmaillPicture.length; i<len; i++) {
 			let imgName = getImgName()
 			let buf = await moveFile(files.goodSmaillPicture[i].path, path.join(__dirname, '../../views/image/goods/smaill/' + imgName))
-			sharp(buf).resize({ height:430, fit:'inside1' }).toFile(path.join(__dirname, `../../views/image/goods/smaill/${imgName}_430x430q90.jpg`), (err, info) => {
+			sharp(buf).resize({ height:430, fit:'inside' }).toFile(path.join(__dirname, `../../views/image/goods/smaill/${imgName}_430x430q90.jpg`), (err, info) => {
 				if (err) console.error('add_product/sharp', err)
 			})
 			sharp(buf).resize({ height:60, fit:'inside' }).toFile(path.join(__dirname, `../../views/image/goods/smaill/${imgName}_60x60q90.jpg`), (err, info) => {
@@ -322,9 +322,6 @@ router.post('/add_product', koaBody({ multipart: true }), async ctx => {
 				}
 				countArr[countArr.length-1](true)
 			}
-			console.log(insertSpecName)
-			console.log(insertSpecValue)
-			console.log(insertSpecConfig)
 			// 执行 SQL 语句插入数据
 			const specInsertAns = await db.executeNoQueryMany({
 				specName: insertSpecName,
@@ -338,9 +335,6 @@ router.post('/add_product', koaBody({ multipart: true }), async ctx => {
 			// 无属性分类
 			insertGoodDetail += `(${goodId},0,${info.goodDetailInfo[0].amount},${info.goodDetailInfo[0].price},1);`
 		}
-			console.log(insertSmaillPicture)
-			console.log(insertGoodInfoPicture)
-			console.log(insertGoodDetail)
 		// 执行 SQL 语句插入数据
 		const insertAns = await db.executeNoQueryMany({
 				smaillPicture: insertSmaillPicture,
@@ -356,10 +350,9 @@ router.post('/add_product', koaBody({ multipart: true }), async ctx => {
 		ctx.body = {success: false, code: '9999', message: err.message}
 	}
 })
-
-router.post('/test', koaBody({ multipart: true }), async ctx => {
-	const files = ctx.request.files
-
+//koaBody({ multipart: true }),
+router.get('/test', async ctx => {
+	// const files = ctx.request.files
 })
 
 module.exports = router.routes();
