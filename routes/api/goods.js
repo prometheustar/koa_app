@@ -322,6 +322,9 @@ router.post('/add_product', koaBody({ multipart: true }), async ctx => {
 				}
 				countArr[countArr.length-1](true)
 			}
+			console.log(insertSpecName)
+			console.log(insertSpecValue)
+			console.log(insertSpecConfig)
 			// 执行 SQL 语句插入数据
 			const specInsertAns = await db.executeNoQueryMany({
 				specName: insertSpecName,
@@ -335,6 +338,9 @@ router.post('/add_product', koaBody({ multipart: true }), async ctx => {
 			// 无属性分类
 			insertGoodDetail += `(${goodId},0,${info.goodDetailInfo[0].amount},${info.goodDetailInfo[0].price},1);`
 		}
+			console.log(insertSmaillPicture)
+			console.log(insertGoodInfoPicture)
+			console.log(insertGoodDetail)
 		// 执行 SQL 语句插入数据
 		const insertAns = await db.executeNoQueryMany({
 				smaillPicture: insertSmaillPicture,

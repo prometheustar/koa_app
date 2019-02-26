@@ -164,7 +164,7 @@ router.post('/phonelogin', async ctx => {
 		if (dbsms.length === 0) {
 			return ctx.body = {success: false, code: '0001', message: '手机号无记录'};
 		}
-		const md5sms = md5(md5(user.sms_code + keys.tokenKey) + user.phone);
+		const md5sms = md5(md5(user.sms_code + keys.secretOrKey) + user.phone);
 		if (md5sms !== dbsms[0].smsCode) {
 			return ctx.body = {success: false, code: '0001', message: '验证码错误'};
 		}
