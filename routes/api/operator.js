@@ -18,53 +18,36 @@ const { moveFile } = require('../../config/tools')
  * @route POST api/operator/sms
  * @desc 发送短信验证码，返回验证码
  * @access 公开
+ * 
  */
 router.post('/sms', async ctx => {
 	const phone = ctx.request.body.phone;
-	console.log(ctx.request.body);
 	if (!validator.isPhone(phone)){
 		ctx.status = 400;
-		ctx.body = {
-			success: false,
-			code: '1004',
-			msg: 'Failed',
-			error: '手机号码无效'
-		}
-		return;
+		return ctx.body = {success: false, code: '1004',message: '手机号码无效'}
 	}
-	// 验证码不能以 0 开头
-	const smsCode = tools.getSMSCode();
-	// md5 加密
-	const md5sms = md5(md5(smsCode + keys.secretOrKey) + phone);
-	// 加密数据存入数据库
 	try {
-		const ans = await db.executeNoQuery(`insert into member_sms(phone,smsCode) values('${phone}', '${md5sms}');`)
-		if (ans === 1) {
-			// 存入数据库成功，发送短信
-			await SMS(phone, smsCode)
-				.then(res => {
-					// 发送成功
-					ctx.status = 200;
-					ctx.body = {success:true, code:'0000', msg:'OK', payload:{
-							smsCode: smsCode
-						}
-					}
-				})
-				.catch(err => {
-					ctx.status = 400;
-					ctx.body = {
-						success: false,
-						code: '0002',
-						msg: 'Fail',
-						error: err.data.Message
-					}
-					console.log('/sms', err.message);
-				});
+		// 查询是否重复发送
+		const repeat = await db.executeReader(`select smsCode from member_sms where phone='${phone}' and date_add(now(),interval -50 second) < creaTime and creaTime=(select max(creaTime) from member_sms where phone='${phone}' order by creaTime desc);`)
+		if (repeat.length > 0) {
+			return ctx.body = {success: false, message: '1分钟内只能发送一次'}
 		}
+
+		const smsCode = tools.getSMSCode();
+		// md5 加密
+		const md5sms = md5(md5(smsCode + keys.secretOrKey) + phone);
+		// 加密数据存入数据库
+		const ans = await db.executeNoQuery(`insert into member_sms(phone,smsCode) values('${phone}', '${md5sms}');`)
+		if (ans !== 1) { return {success: false, message: '未知错误'}}
+			// 存入数据库成功，发送短信
+		const res = await SMS(phone, smsCode)
+		ctx.status = 200;
+		ctx.body = {success:true, code:'0000', message:'OK'}
+
 	}catch (err) {
 		console.error('/api/operator/sms', err.message)
 		ctx.status = 400;
-		ctx.body = {success: false, code: '9999', msg: 'Fail', error: err.message }
+		ctx.body = {success: false, code: '9999', message: err.message }
 	}
 })
 
@@ -72,40 +55,30 @@ router.post('/testsms', async ctx => {
 	const phone = ctx.request.body.phone;
 	if (!validator.isPhone(phone)){
 		ctx.status = 400;
-		ctx.body = {
-			success: false,
-			code: '1004',
-			msg: 'Failed',
-			error: '手机号码无效'
-		}
-		return;
+		return ctx.body = {success: false, code: '1004',message: '手机号码无效'}
 	}
-	// 验证码不能以 0 开头
-	const smsCode = tools.getSMSCode();
-	// md5 加密
-	const md5sms = md5(md5(smsCode + keys.secretOrKey) + phone);
-	// 加密数据存入数据库
-	await db.executeNoQuery(`insert into member_sms(phone,smsCode) values('${phone}', '${md5sms}');`)
-		.then(ans => {
-			if (ans !== 1) {
-				ctx.status = 400;
-				ctx.body = {success: false, code: '0002', msg: 'Failed'}
-			}else {
-				// 发送成功
-				ctx.status = 200;
-				ctx.body = {success:true, code:'0000', msg:'OK', payload:{smsCode: smsCode}}
-			}
-		})
-		.catch(err => {
-			console.error('/api/operator/testsms', err.message);
-			ctx.status = 400;
-			ctx.body = {
-				success: false,
-				code: '0002',
-				msg: 'Fail',
-				error: err.message
-			}
-		});
+	try {
+		// 查询是否重复发送
+		const repeat = await db.executeReader(`select smsCode from member_sms where phone='${phone}' and date_add(now(),interval -50 second) < creaTime and creaTime=(select max(creaTime) from member_sms where phone='${phone}' order by creaTime desc);`)
+		if (repeat.length > 0) {
+			return ctx.body = {success: false, message: '1分钟内只能发送一次'}
+		}
+
+		const smsCode = tools.getSMSCode();
+		// md5 加密
+		const md5sms = md5(md5(smsCode + keys.secretOrKey) + phone);
+		// 加密数据存入数据库
+		const ans = await db.executeNoQuery(`insert into member_sms(phone,smsCode) values('${phone}', '${md5sms}');`)
+		if (ans !== 1) { return {success: false, message: '未知错误'}}
+
+		ctx.status = 200;
+		ctx.body = {success:true, code:'0000', message:'OK', smsCode: smsCode}
+
+	}catch (err) {
+		console.error('/api/operator/sms', err.message)
+		ctx.status = 400;
+		ctx.body = {success: false, code: '9999', message: err.message }
+	}
 })
 
 // 文件上传测试

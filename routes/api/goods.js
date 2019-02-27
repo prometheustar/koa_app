@@ -10,7 +10,7 @@ const sharp = require('sharp')
 const path = require('path')
 const db = require('../../config/mysqldb');
 const { searchProductValidator, addProductValidator } = require('../../validation/validator')
-const { moveFile, randomStr } = require('../../config/tools')
+const { readFile, moveFile, randomStr } = require('../../config/tools')
 /**
  * @route GET /api/goods/type
  * @desc 获得分类信息
@@ -56,6 +56,27 @@ router.get('/type', async ctx => {
 		ctx.body = {success: false, code: '9999', message: err.message}
 	}
 });
+/**
+ * @route GET /api/goods/product_logo
+ * @desc 获得分类信息
+ * @paramter goodId(int) 不传返回 default.jpg
+ * @access 接口是公开的
+ */
+router.get('/product_logo', async ctx => {
+	const info = url.parse(ctx.request.url, true).query;
+	let logo = 'default.jpg'
+	try {
+		if (/^\d+$/.test(info.goodId)) {
+			const product = await db.executeReader(`select logo from tb_goods where _id=${info.goodId}`)
+			if (product.length > 0) { logo = product[0].logo }
+		}
+		const image = await readFile(path.join(__dirname, '../../views/image/goods/logo/' + logo))
+		ctx.response.type = 'image/jpeg'
+		ctx.body = image
+	}catch(err) {
+		console.error('/api/goods/product_logo', err.message)
+	}
+})
 
 /**
  * @route GET /api/goods/search_product
@@ -350,9 +371,12 @@ router.post('/add_product', koaBody({ multipart: true }), async ctx => {
 		ctx.body = {success: false, code: '9999', message: err.message}
 	}
 })
+
 //koaBody({ multipart: true }),
 router.get('/test', async ctx => {
-	// const files = ctx.request.files
+	const info = url.parse(ctx.request.url, true).query;
+	console.log(info)
+	ctx.body = info
 })
 
 module.exports = router.routes();

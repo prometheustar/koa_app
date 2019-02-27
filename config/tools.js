@@ -33,8 +33,8 @@ function readFile(url) {
 function moveFile(before, next) {
 	return new Promise((resolve, reject) => {
 		// 创建可读流
-		var readerStream = fs.createReadStream(before)
-		var writeStream = fs.createWriteStream(next)
+		const readerStream = fs.createReadStream(before)
+		const writeStream = fs.createWriteStream(next)
 		let buf = Buffer.alloc(0)
 		readerStream.on('data', (chunk) => {
 			writeStream.write(chunk)

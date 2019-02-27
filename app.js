@@ -42,30 +42,6 @@ app.use(static(path.resolve(__dirname, './views')));
 // 解析post 请求体
 app.use(bodyParser());
 
-// 请求头 token 验证
-app.use(async function passportToken(ctx, next) {
-    try{
-        const token = ctx.request.header.authorization || ctx.request.body.token;
-        if (!token) {
-            ctx.jwt = {passport: false, message: 'empty token'}
-        }else {
-            // 存在，解析
-            jwt.verify(token, keys.tokenKey, (err, decoded) => {
-                if (err) {
-                    ctx.jwt = {passport: false, message: err.message};
-                    return;
-                }
-                ctx.jwt = {passport: true, user: decoded}
-            })
-        }
-    }
-    catch(err){
-        console.log('passportToken', err);
-        ctx.jwt = {passport: false, message: err.message};
-    }
-    await next();
-});
-
 // 配置路由地址
 const goods = require('./routes/api/goods');
 const users = require('./routes/api/users');
@@ -87,5 +63,5 @@ app.listen(port, () => {
 
 app.on('error', (err, ctx) => {
     if (err.code === 'ECANCELED' || err.code === 'ECONNRESET') return console.log('报错了');
-    console.log(err);
+    console.error('/app', err.message);
 });

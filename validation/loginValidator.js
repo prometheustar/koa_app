@@ -18,11 +18,9 @@ module.exports = function validateRegisterInput(data) {
 		ans.message = "密码有误"; return ans;
 	}
 	if (validator.isPhone(data.account)) {
-		data.way = 'phone';
-		return {isvalid: true, message: 'OK'}
+		return {isvalid: true, message: 'OK', way: 'phone'}
 	} else if (isLength(data.account, {min:2, max:10})){
-		data.way = 'nickname';
-		return {isvalid: true, message: 'OK'}
+		return {isvalid: true, message: 'OK', way: 'nickname'}
 	} else {
 		ans.message = "账户格式有误"; return ans;
 	}
