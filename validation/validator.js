@@ -175,6 +175,33 @@ function addProductValidator(info, files) {
 	ans.message = 'OK'
 	return ans
 }
+
+// api/users/submit_order 参数验证
+// goodDetailIds(intArr)  numbers(intArr) addressId(int)
+function submitOrderValidator(info) {
+	let ans = { isvalid: false, message: '接口参数错误' }
+	if (isEmpty(info)) { return ans }
+	if (!Array.isArray(info.goodDetailIds) || info.goodDetailIds.length < 1) {
+		return ans
+	}
+
+	if (!Array.isArray(info.numbers) || info.numbers.length < 1 || info.numbers.length !== info.goodDetailIds.length || info.messages.length !== info.numbers.length) {
+		return ans
+	}else {
+		for (let len = info.numbers.length -1; len >= 0; len--) {
+			if (!/^[1-9]\d*$/.test(info.numbers[len]) || !/^[1-9]\d*$/.test(info.goodDetailIds[len])) {
+				return ans
+			}
+		}
+	}
+	if (!/^[1-9]\d*$/.test(info.addressId)) {
+		return ans
+	}
+	ans.isvalid = true;
+	ans.message = 'OK'
+	return ans
+}
+
 module.exports = {
 	isLength: validator.isLength,
 	equals: validator.equals,
@@ -182,5 +209,6 @@ module.exports = {
 	isEmpty,
 	isPhone,
 	searchProductValidator,
-	addProductValidator
+	addProductValidator,
+	submitOrderValidator
 }

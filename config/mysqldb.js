@@ -95,7 +95,7 @@ function executeNoQueryMany(sql_strs) {
 		let key;
 		let results = {};
 		for (key in sql_strs) {
-			(function(){
+			(function() {
 				const sql_key = key
 				// 获得连接
 				pool.getConnection((err, connection) => {

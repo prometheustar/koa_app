@@ -13,6 +13,8 @@ const validator = require('../../validation/validator');
 const validateRegister = require('../../validation/register');
 const loginValidator = require('../../validation/loginValidator');
 const tokenValidator = require('../../validation/tokenValidator')
+
+
 /**
  * @route GET api/users/current
  * @desc 验证 token，有效重新返回登录信息
@@ -299,7 +301,7 @@ router.post('/nickname', async ctx => {
  */
 router.post('/address', async ctx => {
 	const token = tokenValidator(ctx)
-	if (!token.isvalid) return ctx.body = {success: false, message: '没有该接口的访问权限', code: '1002'}
+	if (!token.isvalid) return ctx.body = {success: false, message: '没有访问权限', code: '1002'}
 	const memberId = token.payload.userId
 	try {
 		const address = await db.executeReader(`select mid, receiveName, address,phone,postcode from tb_address where mid=${memberId};`)

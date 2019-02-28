@@ -73,11 +73,25 @@ function randomStr(length) {
 		return baseName + '_' + (Math.random() + "").substring(2,10) + (ext ? ext[0] : '.jpg')
 	}
 }
+
+// 生成 number(订货编号)函数，16位
+function getOrderno() {
+    var date = new Date(),
+        year = (date.getFullYear()+ "").substring(2,4),
+        month = date.getMonth(),
+        day = date.getDate(),
+        unique = Date.now() * Math.random() + "";
+    return (unique.substring(0,6) + year +
+            (month > 9 ? month : "0" + month) +
+            (day > 9 ? day : "0" + day) + 
+            unique.substring(6,10));
+}
 module.exports = {
 	enbcrypt,
 	getSMSCode,
 	transPhone,
 	readFile,
 	moveFile,
-	randomStr
+	randomStr,
+	getOrderno
 }

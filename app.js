@@ -1,7 +1,6 @@
 const Koa = require('koa');
 const Router = require("koa-router");
 const bodyParser = require('koa-bodyparser');
-const jwt = require("jsonwebtoken");
 const static = require('koa-static');
 const path = require("path");
 
@@ -46,22 +45,26 @@ app.use(bodyParser());
 const goods = require('./routes/api/goods');
 const users = require('./routes/api/users');
 const operator = require('./routes/api/operator');
+const order = require('./routes/api/order');
 const cs = require('./routes/api/cs');
 router.use('/api/goods', goods);
 router.use('/api/users', users);
 router.use('/api/operator', operator);
+router.use('/api/order', order);
 router.use('/api/cs', cs);
 
 // 配置路由
 app.use(router.routes()).use(router.allowedMethods());
 
-const port = process.env.PORT || 80
-app.listen(port, () => {
-    console.log('|--------------------------------|');
-	console.log('running...' + port);
-});
-
 app.on('error', (err, ctx) => {
     if (err.code === 'ECANCELED' || err.code === 'ECONNRESET') return console.log('报错了');
     console.error('/app', err.message);
+});
+
+const port = process.env.PORT || 80
+
+// listen 会返回 createServer 对象
+module.exports = app.listen(port, () => {
+    console.log('|--------------------------------|');
+    console.log('running...' + port);
 });
