@@ -1,6 +1,7 @@
 const KoaRouter = require('koa-router');
 const router = new KoaRouter();
 const Decimal = require('decimal.js-light')
+const md5 = require('md5')
 
 const db = require('../../config/mysqldb.js')
 const tools = require('../../config/tools')
