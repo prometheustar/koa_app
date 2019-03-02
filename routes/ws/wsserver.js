@@ -1,5 +1,4 @@
 const WebSocket = require('ws')
-const cookie = require('cookie')
 const jwt = require('jsonwebtoken')
 const keys = require('../../config/keys')
 const tokenValidator = require('../../validation/tokenValidator')
