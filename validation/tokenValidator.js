@@ -1,8 +1,15 @@
 const jwt = require('jsonwebtoken')
+const url = require('url')
 const keys = require('../config/keys')
 
 module.exports = (ctx) => {
-	const token = ctx.request.header.authorization || ctx.request.body.token;
+	let token;
+	if (typeof(ctx) === 'string') {
+		// get 请求将 token 放在url 中
+		token = url.parse(ctx, true).query.token
+	}else {
+		token = ctx.request.header.authorization || ctx.request.body.token
+	}
     if (!token) {
         return { isvalid: false, message: 'empty token' }
     }

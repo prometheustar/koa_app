@@ -301,7 +301,7 @@ router.post('/nickname', async ctx => {
  */
 router.post('/address', async ctx => {
 	const token = tokenValidator(ctx)
-	if (!token.isvalid) return ctx.body = {success: false, message: '没有访问权限', code: '1002'}
+	if (!token.isvalid) return ctx.body = {success: false, message: '请登录后操作', code: '1002'}
 	const memberId = token.payload.userId
 	try {
 		const address = await db.executeReader(`select mid, receiveName, address,phone,postcode from tb_address where mid=${memberId};`)
@@ -312,4 +312,26 @@ router.post('/address', async ctx => {
 	}
 })
 
+
+/**
+ * @route GET /api/users/get_property
+ * @desc 查询账户余额
+ * @access 携带 token 访问
+ */
+router.get('/get_property', async ctx => {
+	const token = tokenValidator(ctx)
+	if (!token.isvalid) {
+		 return ctx.body = {success: false, message: '请登录后操作', code: '1002'}
+	}
+	try {
+		const property = await db.executeReader(`select property from tb_member where _id=${token.payload.userId}`)
+		if (property.length < 1) {
+			return ctx.body = {success: false, code: '0000', message: '数据异常'}
+		}
+		ctx.body = {success: true, code: '0000', message: 'OK', payload: property[0].property}
+	}catch(err) {
+		console.error('/api/users/address', err.message)
+		ctx.body = {success: false, code: '9999', message: 'server busy'}
+	}
+})
 module.exports = router.routes()

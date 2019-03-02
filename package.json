@@ -12,6 +12,7 @@
   "license": "ISC",
   "dependencies": {
     "@alicloud/sms-sdk": "^1.1.6",
+    "alipay-sdk": "^3.0.4",
     "bcryptjs": "^2.4.3",
     "decimal.js-light": "^2.5.0",
     "jsonwebtoken": "^8.4.0",
@@ -23,8 +24,6 @@
     "koa-static": "^5.0.0",
     "koa2-cors": "^2.0.6",
     "md5": "^2.2.1",
-    "mongoose": "^5.3.16",
-    "mssql": "^4.3.0",
     "mysql": "^2.16.0",
     "passport-jwt": "^4.0.0",
     "sharp": "^0.21.3",

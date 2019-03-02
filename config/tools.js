@@ -86,6 +86,19 @@ function getOrderno() {
             (day > 9 ? day : "0" + day) + 
             unique.substring(6,10));
 }
+
+function formatDate() {
+	let date = new Date()
+    let y = date.getFullYear();  
+    let m = date.getMonth() + 1
+    m = m < 10 ? ('0' + m) : m
+    let d = date.getDate()
+    d = d < 10 ? ('0' + d) : d
+    let h = date.getHours()
+    let minute = date.getMinutes(); 
+    minute = minute < 10 ? ('0' + minute) : minute
+    return y + '-' + m + '-' + d+' '+h+':'+minute
+}
 module.exports = {
 	enbcrypt,
 	getSMSCode,
@@ -93,5 +106,6 @@ module.exports = {
 	readFile,
 	moveFile,
 	randomStr,
-	getOrderno
+	getOrderno,
+	formatDate
 }

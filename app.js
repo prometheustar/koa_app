@@ -3,7 +3,7 @@ const Router = require("koa-router");
 const bodyParser = require('koa-bodyparser');
 const static = require('koa-static');
 const path = require("path");
-
+const { initSocket } = require('./routes/ws/wsserver')
 /**
  * 跨域
  * CORS是一个W3C标准，全称是"跨域资源共享"（Cross-origin resource sharing）。
@@ -63,8 +63,11 @@ app.on('error', (err, ctx) => {
 
 const port = process.env.PORT || 80
 
-// listen 会返回 createServer 对象
-module.exports = app.listen(port, () => {
+// listen 会返回 createServer http对象
+const server = app.listen(port, () => {
+    console.log('koa_running...' + port);
     console.log('|--------------------------------|');
-    console.log('running...' + port);
 });
+
+initSocket(server)
+
