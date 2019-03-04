@@ -11,8 +11,6 @@ const { initSocket } = require('./routes/ws/wsserver')
  */
 const cors = require('koa2-cors');
 
-const keys = require('./config/keys.js');
-
 // 实例化 koa
 const app = new Koa();
 const router = new Router();

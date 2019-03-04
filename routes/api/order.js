@@ -139,19 +139,33 @@ router.post('/alipay_notify', async ctx => {
  */
 router.post('/putaway', async ctx => {
 	const info = ctx.request.body
-	if (!/^[1-9]\d*$/.test(info.goodId) || !/^[01]$/.test(info.state)) {
-		return ctx.body = {success: false, message: '接口参数错误', code: '1002'}
+	let goodId = ''
+	let response = {success: false, message: '接口参数错误', code: '1002'}
+	if (/^[01]$/.test(info.state)) {
+		if (!Array.isArray(info.goodIds)) {
+			try {
+				info.goodIds = JSON.parse(info.goodIds)
+				if (!Array.isArray(info.goodIds)) {
+					return ctx.body = response
+				}
+			}catch(err) {
+				return ctx.body = response
+			}
+		}
+	}else {
+		return ctx.body = response
+	}
+	for (let i = 0, len = info.goodIds.length; i < len; i ++) {
+		if (!/^[1-9]\d*$/.test(info.goodIds[i])) {
+			return ctx.body = response
+		}else {
+			let end = i === len - 1 ? '' : ' or '
+			goodId += `_id=${info.goodIds[i] + end}`
+		}
 	}
 	try {
-		const result = await db.executeNoQuery(`update tb_goods set state=${info.state} where _id=${info.goodId} and state<>${info.state} and checkstate=1;`)
-		console.log(result)
-		if (result !== 1) {
-			return info.state === 1 ? 
-			 	ctx.body = {success: false, message: '商品已下架或商品不存在', code: '1002'} :
-			 	ctx.body = {success: false, message: '商品已上架或商品不存在', code: '1002'}
-		}
-
-		ctx.body = {success: true, code: '0000', message: 'OK'}
+		const result = await db.executeNoQuery(`update tb_goods set state=${info.state} where state<>${info.state} and checkstate=1 and (${goodId});`)
+		ctx.body = {success: true, code: '0000', message: 'OK', payload: result}
 	}catch(err) {
 		console.error('/api/order/putaway', err.message)
 		ctx.body = {success: false, code: '9999', message: err.message}
