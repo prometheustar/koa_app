@@ -143,9 +143,13 @@ router.post('/putaway', async ctx => {
 		return ctx.body = {success: false, message: '接口参数错误', code: '1002'}
 	}
 	try {
-		const result = db.executeNoQuery(`update tb_goods set state=${info.state} where _id=${info.goodId} and checkstate=1;`)
-		if (result !== 1) 
-			return ctx.body = {success: false, message: '商品不存在或审核不通过', code: '1002'}
+		const result = await db.executeNoQuery(`update tb_goods set state=${info.state} where _id=${info.goodId} and state<>${info.state} and checkstate=1;`)
+		console.log(result)
+		if (result !== 1) {
+			return info.state === 1 ? 
+			 	ctx.body = {success: false, message: '商品已下架或商品不存在', code: '1002'} :
+			 	ctx.body = {success: false, message: '商品已上架或商品不存在', code: '1002'}
+		}
 
 		ctx.body = {success: true, code: '0000', message: 'OK'}
 	}catch(err) {
@@ -166,7 +170,7 @@ router.post('/send_product', async ctx => {
 		return ctx.body = {success: false, message: '接口参数错误', code: '1002'}
 
 	try {
-		const result = db.executeNoQuery(`update tb_orderDetail set isSend=1,postWay='${info.postWay}',expNumber='${info.expNumber}' where _id=${info.orderDetailId};`)
+		const result = await db.executeNoQuery(`update tb_orderDetail set isSend=1,postWay='${info.postWay}',expNumber='${info.expNumber}' where _id=${info.orderDetailId};`)
 		if (result < 1) {
 			return ctx.body = {success: false, message: '订单不存在', code: '1002'}
 		}

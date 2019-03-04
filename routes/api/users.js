@@ -334,4 +334,13 @@ router.get('/get_property', async ctx => {
 		ctx.body = {success: false, code: '9999', message: 'server busy'}
 	}
 })
+
+/**
+ * @route GET /api/users/shopingcat
+ * @desc 查询购物车信息
+ * @access 携带 token 访问
+ */
+router.get('/shopingcat', async ctx => {
+	
+})
 module.exports = router.routes()

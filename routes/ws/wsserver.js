@@ -3,6 +3,8 @@ const jwt = require('jsonwebtoken')
 const keys = require('../../config/keys')
 const tokenValidator = require('../../validation/tokenValidator')
 
+const users = require('./users')
+
 const wsserver = {
 	wss: null,
 	initSocket: function(server) {
@@ -52,10 +54,26 @@ const wsserver = {
 		    	// 根据消息类型处理回复
 		    	switch(info.type) {
 					case 'transToken':  // 客户端请求一个新的token
+						console.log('token replace')
 						return ws.send(JSON.stringify({
 							type: 'transToken', origin: 'koa', target: ws._sender._socket.token.userId,
 							content: jwt.sign(ws._sender._socket.token, keys.tokenKey, {expiresIn: 60*20})
 						}))
+					case 'get_shop_cat':  // 获取购物车信息
+						users.getShopCarInfo(ws)
+						break
+					case 'add_shopcar_product': // 购物车添加商品
+						users.addShopCarProduct(ws, info)
+						break
+					case 'shop_car_number_minus':  // 购物车商品数量减一
+						users.shopCarNumberMinus(ws, info)
+						break
+					case 'shop_car_number_plus':  // 购物车商品数量加一
+						users.shopCarNumberPlus(ws, info)
+						break
+					case 'delete_shop_car_product':  // 购物车删除商品
+						users.deleteShopCarProduct(ws, info)
+						break
 					default:
 						return
 		    	}
