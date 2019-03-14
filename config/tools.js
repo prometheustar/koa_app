@@ -30,7 +30,7 @@ function readFile(url) {
 	});
 }
 // 文件移动
-function moveFile(before, next) {
+function moveFile(before, next, callback) {
 	return new Promise((resolve, reject) => {
 		// 创建可读流
 		const readerStream = fs.createReadStream(before)
@@ -47,16 +47,22 @@ function moveFile(before, next) {
 		   fs.unlink(before, (err) => {
 				if (err) {console.error('moveFile/rmfile', err.message)}
 		   })
-		   resolve(buf);
-		});
+		   resolve(buf)
+		   if (typeof(callback) === 'function') 
+				callback(null, buf)
+		})
 
 		readerStream.on('error', (err) => {
 			console.error('moveFile/readerStream', err)
 			reject(err)
+		   	if (typeof(callback) === 'function') 
+				callback(err)
 		})
 		writeStream.on('error', (err) => {
 			console.error('moveFile/writeStream', err)
 			reject(err)
+		   	if (typeof(callback) === 'function') 
+				callback(err)
 		})
 	})
 }

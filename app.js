@@ -30,6 +30,10 @@ app.use(cors({
     allowHeaders: ['Content-Type', 'Authorization', 'Accept']
 }))
 
+// React 服务端渲染页面
+const serverRender = require('./routes/react-ssr/react-ssr')
+app.use(serverRender)
+
 /**
  * 静态文件目录
  * / ==> /public/index.html
@@ -39,7 +43,7 @@ app.use(static(path.resolve(__dirname, './views')));
 // 解析post 请求体
 app.use(bodyParser());
 
-// 配置路由地址
+// 配置 API 路由地址
 const goods = require('./routes/api/goods');
 const users = require('./routes/api/users');
 const operator = require('./routes/api/operator');
@@ -56,7 +60,7 @@ app.use(router.routes()).use(router.allowedMethods());
 
 app.on('error', (err, ctx) => {
     if (err.code === 'ECANCELED' || err.code === 'ECONNRESET') return console.log('报错了');
-    console.error('/app', err.message);
+    console.error(`/app-${Date.now()}`, err);
 });
 
 const port = process.env.PORT || 80

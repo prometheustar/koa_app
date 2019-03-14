@@ -3,8 +3,11 @@ const router = new Router();
 const bcrypt = require('bcryptjs');  // bcrypt 加密
 const jwt = require('jsonwebtoken');
 const md5 = require('md5');
+const koaBody = require('koa-body')
+const sharp = require('sharp')
+const path = require('path')
+const url = require('url')
 
-// 引入 tools
 const tools = require('../../config/tools.js');
 const keys = require('../../config/keys.js');
 const db = require('../../config/mysqldb.js');
@@ -336,11 +339,115 @@ router.get('/get_property', async ctx => {
 })
 
 /**
- * @route GET /api/users/shopingcat
- * @desc 查询购物车信息
+ * @route GET /api/users/chat_msg
+ * @desc 查询消息记录
  * @access 携带 token 访问
  */
-router.get('/shopingcat', async ctx => {
-	
+// router.get('/chat_msg', async ctx => {
+// 	const token = tokenValidator(ctx)
+// 	if (!token.isvalid) {
+// 		 return ctx.body = {success: false, message: '请登录后操作', code: '1002'}
+// 	}
+// 	let userId = token.payload.userId
+// 	try {
+// 		const result = await db.executeReaderMany({
+// 			messages: `SELECT c.isRead,c.sender, c.receiver,c.content,c.creaTime,m.avatar as senderAvatar,m.nickname as senderNickname,m2.avatar as receiverAvatar,m2.nickname as receiverNickname FROM tb_chat c JOIN tb_member m ON c.sender = m._id JOIN tb_member m2 ON c.receiver = m2._id 
+// 				WHERE(c.receiver = ${userId}
+// 					AND c.isRead = 0)
+// 					or c.sender=${userId}
+// 				ORDER BY
+// 					c.creaTime asc
+// 					LIMIT 100;`
+// 		})
+// 		// 整合消息
+// 		let messages = [{}]
+// 		let senderIsMe = false;
+// 		for (let i = 0, length = result.messages.length; i < length; i++) {
+// 			for (let j = 0, len = messages.length; j < len; j++) {
+// 				if (result.messages[i].receiver === messages[j].userId || result.messages[i].sender === messages[j].userId) {
+// 					messages[j].content.push({
+// 						sender: result.messages[i].sender,
+// 						msg: result.messages[i].content,
+// 						creaTime: result.messages[i].creaTime
+// 					})
+// 					if (result.messages[i].receiver === userId && result.messages[i].isRead.readInt8(0) === 0) {
+// 						messages[j].notRead = messages[j].notRead ? messages[j].notRead + 1 : 1
+// 					}
+// 					break
+// 				}
+// 				if (j === len-1) {
+// 					senderIsMe = result.messages[i].sender === userId
+// 					let item = {
+// 						userId: senderIsMe ? result.messages[i].receiver : result.messages[i].sender,
+// 						avatar: senderIsMe ? result.messages[i].receiverAvatar : result.messages[i].senderAvatar,
+// 						nickname: senderIsMe ? result.messages[i].receiverNickname : result.messages[i].senderNickname,
+// 						notRead: !senderIsMe && result.messages[i].isRead.readInt8(0) === 0 ? 1 : 0,
+// 						content: [{
+// 							sender: result.messages[i].sender,
+// 							msg: result.messages[i].content,
+// 							creaTime: result.messages[i].creaTime,
+// 						}]
+// 					}
+// 					if (i === 0) { messages[0] = item }else {messages.push(item)}
+// 				}
+// 			}
+// 		}
+// 		result.messages = messages
+// 		ctx.body = {success: true, code: '0000', message: 'OK', payload: result}
+// 	}catch(err) {
+// 		console.error('/api/users/address', err.message)
+// 		ctx.body = {success: false, code: '9999', message: 'server busy'}
+// 	}
+// })
+
+/**
+ * @route GET /api/users/get_property
+ * @desc 保存聊天图片
+ * @access 携带 token 访问
+ */
+router.post('/save_chat_image', koaBody({ multipart: true }), async ctx => {
+	const token = tokenValidator(ctx)
+	if (!token.isvalid) {
+		return ctx.body = {success: false, message: '请登录后操作', code: '1002'}
+	}
+	if (!/^image\/(jpeg|png|gif|x-icon)$/.test(ctx.request.files.picture.type)) {
+		return ctx.body = {success: false, message: '格式无效', code: '1002'}
+	}
+	try {
+		let imgName = tools.randomStr()(ctx.request.files.picture.name)
+		let buf = await tools.moveFile(ctx.request.files.picture.path, path.join(__dirname, '../../views/image/member/chat/' + imgName))
+		const info = await sharp(buf).resize({ width: 80, fit:'inside' }).toFile(path.join(__dirname, `../../views/image/member/chat/${imgName}_w80.jpg`))
+		ctx.body = {
+			success: true,
+			payload: imgName
+		}
+	}catch(err) {
+		console.error('/api/users/save_chat_image', err.message)
+		ctx.body = {success: false, code: '9999', message: 'server busy'}
+	}
 })
+
+/**
+ * @route GET /api/users/search_contacts
+ * @desc 搜索好友
+ * @access 携带 token 访问
+ */
+router.get('/search_contacts', async ctx => {
+	const info = url.parse(ctx.request.url, true).query;
+	if (info.keyword === '' || info.keyword === undefined) {
+		return ctx.body = {success: false, code: '1004', message: 'empty keyword'};
+	}
+	const token = tokenValidator(ctx)
+	if (!token.isvalid) {
+		return ctx.body = {success: false, code: '1004', message: 'empty keyword'};
+	}
+	try {
+		const contacts = await db.executeReader(`select m._id as userId,m.nickname,m.avatar from tb_member as m left join (select contacts from tb_contacts where userId=${token.payload.userId}) as c on m._id=c.contacts where m.nickname like '%${info.keyword}%' and c.contacts is null;`)
+		ctx.body = {success: true, payload: contacts}
+	}catch(err) {
+		console.error('/api/users/search_contacts', err.message)
+		ctx.body = {success: false, code: '9999', message: 'server busy'}
+	}
+})
+
 module.exports = router.routes()

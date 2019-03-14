@@ -1,7 +1,7 @@
 const db = require('../../config/mysqldb')
 
 // 获取购物车信息
-module.exports.getShopCarInfo = async ws => {
+exports.getShopCarInfo = async ws => {
 	try {
 		const userId = ws._sender._socket.token.userId
 		let shopCar = await db.executeReaderMany({
@@ -40,7 +40,7 @@ module.exports.getShopCarInfo = async ws => {
 }
 
 // 购物车添加商品
-module.exports.addShopCarProduct = async (ws, info) => {
+exports.addShopCarProduct = async (ws, info) => {
 	if (!/^[1-9]\d*$/.test(info.content.goodDetailId) || !/^[1-9]\d*$/.test(info.content.number)) {
 		return
 	}
@@ -56,7 +56,7 @@ module.exports.addShopCarProduct = async (ws, info) => {
 			insert = await db.executeNoQuery(`insert into tb_shopCar(mid,goodDetailId,number) values(${ws._sender._socket.token.userId},${info.content.goodDetailId},${info.content.number});`)
 		}
 		if (insert > 0 || update > 0) {
-			module.exports.getShopCarInfo(ws)
+			exports.getShopCarInfo(ws)
 		}
 	}catch(err) {
 		console.error('ws/users/shopingcarinfo', err.message)
@@ -64,12 +64,12 @@ module.exports.addShopCarProduct = async (ws, info) => {
 }
 
 // 购物车商品数量减一
-module.exports.shopCarNumberMinus = async (ws, info) => {
+exports.shopCarNumberMinus = async (ws, info) => {
 	if (!/^[1-9]\d*$/.test(info.content)) return
 	try {
 		let update = await db.executeNoQuery(`update tb_shopCar set number=number-1 where mid=${ws._sender._socket.token.userId} and _id=${info.content} and number>1;`)
 		if (update > 0) {
-			module.exports.getShopCarInfo(ws)
+			exports.getShopCarInfo(ws)
 		}
 	}catch(err) {
 		console.error('ws/users/shopCarNumberMinus', err.message)
@@ -77,7 +77,7 @@ module.exports.shopCarNumberMinus = async (ws, info) => {
 }
 
 // 购物车商品数量加一
-module.exports.shopCarNumberPlus = async (ws, info) => {
+exports.shopCarNumberPlus = async (ws, info) => {
 	let shopCarId = info.content
 	if (!/^[1-9]\d*$/.test(shopCarId)) return
 	try {
@@ -85,7 +85,7 @@ module.exports.shopCarNumberPlus = async (ws, info) => {
 		if (amount.length < 1) return
 		let update = await db.executeNoQuery(`update tb_shopCar set number=number+1 where _id=${shopCarId} and mid=${ws._sender._socket.token.userId} and number<${amount[0].amount};`)
 		if (update > 0) {
-			module.exports.getShopCarInfo(ws)
+			exports.getShopCarInfo(ws)
 		}
 	}catch(err) {
 		console.error('ws/users/shopCarNumberPlus', err.message)
@@ -93,14 +93,109 @@ module.exports.shopCarNumberPlus = async (ws, info) => {
 }
 
 // 删除购物车商品
-module.exports.deleteShopCarProduct = async (ws, info) => {
+exports.deleteShopCarProduct = async (ws, info) => {
 	if (!/^[1-9]\d*$/.test(info.content)) return
 	try {
 		let cancel = await db.executeNoQuery(`delete from tb_shopCar where _id=${info.content} and mid=${ws._sender._socket.token.userId};`)
 		if (cancel > 0) {
-			module.exports.getShopCarInfo(ws)
+			exports.getShopCarInfo(ws)
 		}
 	}catch(err) {
 		console.error('ws/users/deleteShopCarProduct', err.message)
+	}
+}
+
+// 获取消息记录
+exports.initChatMessage = async (ws) => {
+	let userId = ws._sender._socket.token.userId
+	let result = []
+	try {
+		result = await db.executeReaderMany({
+			messages: `SELECT c.isRead,c.sender, c.receiver,c.content,c.creaTime,m.avatar as senderAvatar,m.nickname as senderNickname,m2.avatar as receiverAvatar,m2.nickname as receiverNickname FROM tb_chat c JOIN tb_member m ON c.sender = m._id JOIN tb_member m2 ON c.receiver = m2._id 
+				WHERE(c.receiver = ${userId}
+					AND c.isRead = 0)
+					or c.sender=${userId}
+				ORDER BY
+					c.creaTime asc
+					LIMIT 100;`
+		})
+	}catch(err) {
+		return console.error('ws/users/initChatMessage', err.message)
+	}
+		// 整合消息
+	let messages = [{}]
+	let senderIsMe = false;
+	for (let i = 0, length = result.messages.length; i < length; i++) {
+		for (let j = 0, len = messages.length; j < len; j++) {
+			if (result.messages[i].receiver === messages[j].userId || result.messages[i].sender === messages[j].userId) {
+				messages[j].content.push({
+					sender: result.messages[i].sender,
+					msg: result.messages[i].content,
+					creaTime: result.messages[i].creaTime
+				})
+				if (result.messages[i].receiver === userId && result.messages[i].isRead.readInt8(0) === 0) {
+					messages[j].notRead = messages[j].notRead ? messages[j].notRead + 1 : 1
+				}
+				break
+			}
+			if (j === len-1) {
+				senderIsMe = result.messages[i].sender === userId
+				let item = {
+					userId: senderIsMe ? result.messages[i].receiver : result.messages[i].sender,
+					avatar: senderIsMe ? result.messages[i].receiverAvatar : result.messages[i].senderAvatar,
+					nickname: senderIsMe ? result.messages[i].receiverNickname : result.messages[i].senderNickname,
+					notRead: !senderIsMe && result.messages[i].isRead.readInt8(0) === 0 ? 1 : 0,
+					content: [{
+						sender: result.messages[i].sender,
+						msg: result.messages[i].content,
+						creaTime: result.messages[i].creaTime,
+					}]
+				}
+				if (i === 0) { messages[0] = item }else {messages.push(item)}
+			}
+		}
+	}
+	ws.send(JSON.stringify({
+		type: 'init_chat_messages',
+		origin: 'koa',
+		content: messages
+	}))
+}
+
+// 获取联系人列表
+exports.getContacts = async (ws, wss) => {
+	try {
+		const contacts = await db.executeReader(`select m.nickname,m.avatar,m._id as contactId from tb_contacts c join tb_member m on c.contacts=m._id where c.userId=${ws._sender._socket.token.userId};`)
+		for (let i = 0, len = contacts.length; i < len; i++) {
+			contacts[i].isOnline = !!wss.isOnline(contacts[i].contactId)
+		}
+		ws.send(JSON.stringify({
+			type: 'get_contacts',
+			content: contacts
+		}))
+	}catch(err) {
+		console.error('ws/users/getContacts', err.message)
+	}
+}
+
+exports.addContacts = async (ws, info, wss) => {
+	try {
+		const isExist = await db.executeReader(`select count(1) as count from tb_contacts where userId=${ws._sender._socket.token.userId} and contacts=${info.content};`)
+		console.log(isExist)
+		if (isExist[0].count > 0) { return }
+		const insert = await db.executeNoQuery(`insert into tb_contacts(userId,contacts) values(${ws._sender._socket.token.userId},${info.content});`)
+		if (insert > 0) {
+			exports.getContacts(ws, wss); // 刷新联系人列表
+		}
+	}catch(err) {
+		console.error('ws/users/addContacts', err.message)
+	}
+}
+// 将消息转为已读
+exports.messageBeRead = (ws, info) => {
+	try {
+		db.executeNoQuery(`update tb_chat set isRead=1 where sender=${info.content} and receiver=${ws._sender._socket.token.userId};`)
+	}catch(err) {
+		console.error('ws/users/messageBeRead', err.message)
 	}
 }

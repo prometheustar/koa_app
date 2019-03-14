@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>Document</title>
+</head>
+<body>
+	<table id="table" border="1">
+	</table>
+	<input id="text" type="text" name="">
+	<button id="btn">发送</button>
+	<script type="text/javascript">
+
+		var ws = new WebSocket('ws://localhost:5000?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsIm5pY2tuYW1lIjoi6LiP6YGN5LiJ5rGf5YWt5qGIIiwicGhvbmUiOiIxMzgqKioqMTExMSIsImdlbmRlciI6MywiYXZhdGFyIjoiZGVmYXVsdC5qcGciLCJzdG9yZUlkIjoyLCJpYXQiOjE1NTE1MTY3ODcsImV4cCI6MTU1MTUxNzk4N30.MYHyXC2upZA5oe5bJblbFEsF4pYRU8bPr2HTlOGGV44')
+		ws.onopen = function(e) {
+			console.log('open', e)
+		}
+		ws.onclose = function(e) {
+			console.log('close', e)
+		}
+		ws.onmessage = function(e) {
+			let msg = e.data
+			console.log(msg)
+			console.log(JSON.parse(msg))
+		}
+		ws.onerror = function(e) {
+			console.error('error', e)
+		}
+
+		document.getElementById('btn').onclick = function() {
+			ws.send(document.getElementById('text').value)
+		}
+
+	</script>
+</body>
+</html>

@@ -244,7 +244,13 @@ router.post('/add_product', koaBody({ multipart: true }), async ctx => {
 		if (product.length > 0) return ctx.body = {success: false, code: '0001', message: '商品已存在'};
 		const getImgName = randomStr()
 		const logoName = getImgName()
-		await moveFile(files.logo.path, path.join(__dirname, '../../views/image/goods/logo/' + logoName))
+		moveFile(files.logo.path, path.join(__dirname, `../../views/image/goods/logo/${logoName}`), (err, buf) => {
+			if (err) 
+				return console.error('/add_product/moveFile0', err)
+			sharp(buf).resize({ width: 210, fit:'inside' }).toFile(path.join(__dirname, `../../views/image/goods/logo/${logoName}_210x210q90.jpg`), (err, info) => {
+				if (err) console.error('/add_product/sharp1', err)
+			})
+		})
 		const goodno = info.storeId + Date.now().toString()
 		// 插入商品表数据
 		let insertGoods = `insert into tb_goods(bigId,smaillId,detailId,storeId,goodName,goodFrom,logo,nowPrice,goodno) values(
@@ -261,12 +267,16 @@ router.post('/add_product', koaBody({ multipart: true }), async ctx => {
 		const smaillPicture = []
 		for (let i=0, len=files.goodSmaillPicture.length; i<len; i++) {
 			let imgName = getImgName()
-			let buf = await moveFile(files.goodSmaillPicture[i].path, path.join(__dirname, '../../views/image/goods/smaill/' + imgName))
-			sharp(buf).resize({ height:430, fit:'inside' }).toFile(path.join(__dirname, `../../views/image/goods/smaill/${imgName}_430x430q90.jpg`), (err, info) => {
-				if (err) console.error('add_product/sharp', err)
-			})
-			sharp(buf).resize({ height:60, fit:'inside' }).toFile(path.join(__dirname, `../../views/image/goods/smaill/${imgName}_60x60q90.jpg`), (err, info) => {
-				if (err) console.error('add_product/sharp2', err)
+			// 处理图片
+			moveFile(files.goodSmaillPicture[i].path, path.join(__dirname, `../../views/image/goods/smaill/${imgName}`), (err, buf) => {
+				if (err) 
+					return console.error('/add_product/moveFile1', err)
+				sharp(buf).resize({ height:430, fit:'inside' }).toFile(path.join(__dirname, `../../views/image/goods/smaill/${imgName}_430x430q90.jpg`), (err, info) => {
+					if (err) console.error('/add_product/sharp1', err)
+				})
+				sharp(buf).resize({ height:60, fit:'inside' }).toFile(path.join(__dirname, `../../views/image/goods/smaill/${imgName}_60x60q90.jpg`), (err, info) => {
+					if (err) console.error('/add_product/sharp2', err)
+				})
 			})
 			smaillPicture.push({imgName, index: i+1})
 		}
@@ -280,7 +290,7 @@ router.post('/add_product', koaBody({ multipart: true }), async ctx => {
 		const infoPicture = []
 		for (let i=0, len=files.goodInfoPicture.length; i<len; i++) {
 			let imgName = getImgName()
-			await moveFile(files.goodInfoPicture[i].path, path.join(__dirname, '../../views/image/goods/info/' + imgName))
+			moveFile(files.goodInfoPicture[i].path, path.join(__dirname, '../../views/image/goods/info/' + imgName))
 			infoPicture.push({imgName, index: i+1})
 		}
 		let insertGoodInfoPicture = 'insert into tb_goodPicture(goodId, link, pindex) values'

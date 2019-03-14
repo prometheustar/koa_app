@@ -1,5 +1,7 @@
-node_modules/
-config/keys.js
-views/image/
-files/
+/node_modules
+/config/keys.js
+/views/image/goods
+/views/image/files
+/views/image/member
+/files
 nohup.out
