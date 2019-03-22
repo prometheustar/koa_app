@@ -27,7 +27,7 @@ module.exports = async (ctx, next) => {
 	// 请求不在 react 定义页面中
 	if (routes.indexOf(pathname) === -1) {
 		ctx.status = 404
-		return ctx.body = '404 你请求的页面丢失了'
+		return ctx.body = '404 你请求的不存在'
 	}
 	try {
 		const appString = ReactSSR.renderToString(createApp(null, decodeURIComponent(ctx.request.url), null))

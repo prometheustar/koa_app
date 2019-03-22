@@ -19,12 +19,116 @@ Decimal.set({
   toExpPos: 21
 });
 
+
+/**
+ * 根据商品的的店家判断生成几个订单
+ * params  goodDetailId [1,2,...] , numbers[1,2,...] , addressId(int) , shopCatIds(arr)yes or no
+ */
+router.post('/submit_order', async ctx => {
+	// token 验证
+	const token = tokenValidator(ctx)
+	if (!token.isvalid) {
+		return ctx.body = {success: false, message: '没有访问权限', code: '1002'}
+	}
+	// 接口参数验证
+	const param = ctx.request.body
+	const orderValid = validator.submitOrderValidator(param)
+	if (!orderValid.isvalid) {
+		return ctx.body = {success: false, message: orderValid.message, code: '1002'}
+	}
+	// 验证通过，插入数据库
+	// 进行地址验证和商品查询，必须是登录用户自己的收货地址
+	let goodDetailSQL = {
+		// 查询商品详情
+		products: `select gd._id as gdId,gd.amount,gd.price,g.storeId from tb_goodDetail gd join tb_goods g on gd.goodId=g._id where gd.state=0 and gd.amount>0 and g.checkstate=1 and g.state=0 and gd._id in (`,
+		address: `select _id from tb_address where _id=${param.addressId} and mid=${token.payload.userId} limit 1;`, // 查询地址是否正确
+
+	}
+	for (let i = 0, len = param.goodDetailIds.length, temp; i < len; i++) {
+		// 对 defailId 进行降序排序
+		for (let j = i+1; j < len; j++) {
+			if (param.goodDetailIds[i] < param.goodDetailIds[j]) {
+				temp = param.goodDetailIds[i]; param.goodDetailIds[i] = param.goodDetailIds[j]; param.goodDetailIds[j] = temp;  // goodDetialId交换值
+				temp = param.numbers[i]; param.numbers[i] = param.numbers[j]; param.numbers[j] = temp;  // 数量交换值
+				temp = param.messages[i]; param.messages[i] = param.messages[j]; param.messages[j] = temp;  // 备注交换值
+			}
+		}
+		if (i===len-1) { goodDetailSQL.products += `${param.goodDetailIds[i]}) order by gd._id desc limit ${len};`; break }
+		goodDetailSQL.products += `${param.goodDetailIds[i]},`
+	}
+	try {
+		/**
+		 * 1.进行地址验证，必须是登录用户自己的收货地址
+		 * 2.商品按不同店铺分成多个订单
+		 * 3.插入订单订单数据库，
+		 * 4.更新库存数据库，if 购物车 => 已购买，
+		 * 4.返回支付二维码，金额
+		 */
+		const goodDetailAns = await db.executeReaderMany(goodDetailSQL)
+		if (goodDetailAns.products.length !== param.goodDetailIds.length || goodDetailAns.address.length < 1) {
+			return ctx.body = {success: false, message: '订单数据异常', code: '1011'}
+		}
+		// 根据商品的不同店铺生成多条订单，插入 tb_order 和 tb_orderDetail 数据
+		let orderSQL = {
+			order: 'insert into tb_order(orderno,mid,sumPrice,addressId,storeId) values',
+			orderDetail: 'insert into tb_orderDetail(orderno,goodDetailId,price,number,message) values',
+			// shopCar
+		}
+		if (orderValid.updateShopCarSQL) {
+			orderSQL.shopCar = orderValid.updateShopCarSQL
+		}
+		let stores = [] // 临时储存店铺 ID
+		let ordernos = [] // 临时储存每个店铺的 orderno
+		let sumPrice = [] // 临时存储价格小计和
+		for (let i = 0, len = goodDetailAns.products.length, index, storeId, orderno, subtotal; i < len; i++) {
+			if (goodDetailAns.products[i].amount < param.numbers[i]) {
+				return ctx.body = {success: false, message: '所选商品数量超过库存量', code: '1011'}
+			}
+			orderSQL[i] = `update tb_goodDetail set amount=amount-${param.numbers[i]} where _id=${goodDetailAns.products[i].gdId};` // 更新库存
+			index = stores.indexOf(goodDetailAns.products[i].storeId)
+			subtotal = new Decimal(goodDetailAns.products[i].price).times(param.numbers[i]) // 小计
+			if (index !== -1) {  // 店铺的订单已添加到 orderSQL
+				sumPrice[index] = subtotal.plus(sumPrice[index])
+				orderSQL.orderDetail += `('${ordernos[index]}',${goodDetailAns.products[i].gdId},${subtotal.toNumber()},${param.numbers[i]},'${param.messages[i]}'),`
+			}else {
+				storeId = goodDetailAns.products[i].storeId
+				orderno = tools.getOrderno()
+				stores.push(storeId); ordernos.push(orderno); sumPrice.push(subtotal)
+				orderSQL.order += `('${orderno}',${token.payload.userId},{{sumPrice${storeId}}},${param.addressId},${storeId}),`
+				orderSQL.orderDetail += `('${orderno}',${goodDetailAns.products[i].gdId},${subtotal.toNumber()},${param.numbers[i]},'${param.messages[i]}'),`
+			}
+		}
+		for (let i = 0, len = stores.length; i < len; i++) {
+			orderSQL.order = orderSQL.order.replace(`{{sumPrice${stores[i]}}}`, sumPrice[i].toString())
+		}
+		orderSQL.order = orderSQL.order.replace(/,$/, ';')
+		orderSQL.orderDetail = orderSQL.orderDetail.replace(/,$/, ';')
+		const orderAns = await db.executeNoQueryMany(orderSQL)
+		// 执行成功后返回付款二维码，金额
+		const totalSumPrice = sumPrice.reduce((prev, now) => now.plus(prev), 0).toString()
+		const alipayURL = await alipay(ordernos, totalSumPrice)
+		ctx.body = {
+			success: true,
+			code: '0000',
+			payload: {
+				alipayURL,
+				sumPrice: totalSumPrice,
+				ordernos,
+			}
+		}
+	}catch(err) {
+		console.error('/api/users/submit_order', err)
+		ctx.body = {success: false, code: '9999', message: err.message}
+	}
+})
+
+
 /**
  * @route GET /api/order/submit_order
  * @props  goodDetailIds(intArr) numbers(intArr) messages(stringArr) addressId(int)
  * @access 携带 token 访问
  */
-router.post('/submit_order', async ctx => {
+router.post('/submit_order2', async ctx => {
 	// token 验证
 	const tokenValid = tokenValidator(ctx)
 	if (!tokenValid.isvalid) {
@@ -97,33 +201,48 @@ router.post('/submit_order', async ctx => {
 	}
 })
 
-// 支付宝支付成功回调接口
-// 验证 app_id, passback_params md5(orderno + secret), trade_status: TRADE_SUCCESS
+/**
+ * 支付宝支付成功回调接口
+ * 验证 app_id, passback_params md5(ordernos + secret), trade_status: TRADE_SUCCESS
+ * 验证通过，订单状态 => 已付款
+ */
 // https://docs.open.alipay.com/270/105902/
 router.post('/alipay_notify', async ctx => {
 	const result = ctx.request.body
 	// 验证
-	if (result.app_id !== keys.alipayAppId || 
-		result.trade_status !== 'TRADE_SUCCESS' ||
-		md5(result.out_trade_no + keys.alipaySecret) !== result.passback_params
-		) {
-		return
+	if (result.app_id !== keys.alipayAppId || result.trade_status !== 'TRADE_SUCCESS') { return }
+	let orders;
+	try {
+		const valid = decodeURIComponent(result.passback_params).split('^oo^')
+		if (md5(valid[0] + keys.alipaySecret) !== valid[1]) {
+			return console.error('/alipay_notify', '支付宝回调接口出错！')
+		}
+		orders = JSON.parse(valid[0])
+	}catch(err) {
+		return console.error('/alipay_notify', '支付宝回调接口出错！')
 	}
 	// 支付成功，改订单表已付款，ws 通知网页，确认收货后；卖家账号余额+sum
 	try {
-		const sql = await db.executeReaderMany({
-			update: `update tb_order set isPay=1 where orderno='${result.out_trade_no}';`,
-			member: `select mid from tb_order where orderno='${result.out_trade_no}';`
-		})
-		if (sql.member.length < 1 || sql.update.affectedRows < 1 || socket.wss === null) {
-			console.log('/alipay_notify', sql)
+		const paySQL = {
+			update: 'update tb_order set isPay=1 where orderno in (',
+			member: `select mid from tb_order where orderno='${result.out_trade_no}' limit 1;`
 		}
-		socket.wss.sendMsg({
-			type: 'payOrderSuccess',
-			origin: 'koa',
-			target: sql.member[0].mid,
-			content: result.out_trade_no
-		})
+		for (let i = 0, len = orders.length, end = ','; i < len; i++) {
+			if (i === len-1) { end = ');' }
+			paySQL.update += `${orders[i]}${end}`
+		}
+		const payAns = await db.executeReaderMany(paySQL)
+		if (payAns.member.length < 1 || payAns.update.affectedRows < 1) {
+			return console.error('/alipay_notify, database miss', payAns)
+		}
+		if (socket.wss !== null) {
+			socket.wss.sendMsg({
+				type: 'payOrderSuccess',
+				origin: 'koa',
+				target: payAns.member[0].mid,
+				content: result.out_trade_no
+			})
+		}
 		ctx.body = 'success' // 回复 alipay
 	}catch(err) {
 		console.error('/api/order/alipay_notify', err.message)
@@ -193,12 +312,6 @@ router.post('/send_product', async ctx => {
 		console.error('/api/order/send_product', err.message)
 		ctx.body = {success: false, code: '9999', message: err.message}
 	}
-})
-
-router.post('/test', async ctx => {
-	socket.wss.sendGroup(ctx.request.body.message)
-	// ctx.body = await alipay(tools.getOrderno(), '10.00')
-	ctx.body = 'ok'
 })
 
 module.exports = router.routes()

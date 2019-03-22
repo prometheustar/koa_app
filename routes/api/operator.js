@@ -13,6 +13,8 @@ const SMS = require('../../config/SMS');
 const db = require('../../config/mysqldb.js');
 const keys = require('../../config/keys.js');
 const { moveFile } = require('../../config/tools')
+const tokenValidator = require('../../validation/tokenValidator')
+
 
 /**
  * @route POST api/operator/sms
@@ -75,7 +77,37 @@ router.post('/testsms', async ctx => {
 		ctx.body = {success:true, code:'0000', message:'OK', smsCode: smsCode}
 
 	}catch (err) {
-		console.error('/api/operator/sms', err.message)
+		console.error('/api/operator/testsms(post)', err.message)
+		ctx.status = 400;
+		ctx.body = {success: false, code: '9999', message: err.message }
+	}
+})
+
+router.get('/testsms', async ctx => {
+	const token = tokenValidator(ctx)
+	if (!token.isvalid) {
+		return ctx.body = ctx.body = {success: false, code: '1004', message: '请登录后操作'}
+	}
+	try {
+		const user = await db.executeReader(`select phone from tb_member where _id=${token.payload.userId};`)
+		const phone = user[0].phone
+		// 查询是否重复发送
+		const repeat = await db.executeReader(`select smsCode from member_sms where phone='${phone}' and date_add(now(),interval -50 second) < creaTime and creaTime=(select max(creaTime) from member_sms where phone='${phone}' order by creaTime desc);`)
+		if (repeat.length > 0) {
+			return ctx.body = {success: false, message: '1分钟内只能发送一次'}
+		}
+		const smsCode = tools.getSMSCode();
+		// md5 加密
+		const md5sms = md5(md5(smsCode + keys.secretOrKey) + phone);
+		// 加密数据存入数据库
+		const ans = await db.executeNoQuery(`insert into member_sms(phone,smsCode) values('${phone}', '${md5sms}');`)
+		if (ans !== 1) { return {success: false, message: '未知错误'}}
+
+		ctx.status = 200;
+		ctx.body = {success:true, code:'0000', message:'OK', payload: {smsCode: smsCode}}
+
+	}catch (err) {
+		console.error('/api/operator/testsms(get)', err.message)
 		ctx.status = 400;
 		ctx.body = {success: false, code: '9999', message: err.message }
 	}
@@ -93,7 +125,7 @@ function readFile(url) {
 	})
 }
 
-// 文件上传工具
+// 文件上传到 linux 工具
 router.get('/files', async ctx => {
 	ctx.body = await readFile(path.join(__dirname, '../../views/files.html'))
 })

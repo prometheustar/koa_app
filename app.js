@@ -30,15 +30,16 @@ app.use(cors({
     allowHeaders: ['Content-Type', 'Authorization', 'Accept']
 }))
 
-// React 服务端渲染页面
+// 服务端渲染 React 页面
 const serverRender = require('./routes/react-ssr/react-ssr')
 app.use(serverRender)
 
 /**
  * 静态文件目录
- * / ==> /public/index.html
  */
-app.use(static(path.resolve(__dirname, './views')));
+app.use(static(path.resolve(__dirname, './views'), {
+    maxage: 10800,  // Cache-Control: 缓存3天
+}));
 
 // 解析post 请求体
 app.use(bodyParser());

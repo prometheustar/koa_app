@@ -1,17 +1,18 @@
 const db = require('../../config/mysqldb')
+const validator = require('../../validation/validator')
 
 // 获取购物车信息
 exports.getShopCarInfo = async ws => {
 	try {
 		const userId = ws._sender._socket.token.userId
 		let shopCar = await db.executeReaderMany({
-			products: `select shop._id as shopCarId,shop.number,gd._id as goodDetailId,gd.price,gd.amount,store._id as storeId,store.storeName,store.nickname,g.goodName,g.logo,g._id as goodId from tb_shopCar shop join tb_goodDetail gd on shop.goodDetailId=gd._id join tb_goods g on gd.goodId=g._id join tb_store store on g.storeId=store._id where shop.mid=${userId} and store.storeStatus=0 and g.state=0 order by shop.creaTime desc`,
+			products: `select shop._id as shopCarId,shop.number,gd._id as goodDetailId,gd.price,gd.amount,store._id as storeId,store.storeName,store.nickname,g.goodName,g.logo,g._id as goodId from tb_shopCar shop join tb_goodDetail gd on shop.goodDetailId=gd._id join tb_goods g on gd.goodId=g._id join tb_store store on g.storeId=store._id where shop.mid=${userId} and shop.isBuy=0 and store.storeStatus=0 and g.state=0 order by shop.creaTime desc`,
 			specValue: `select sp._id as shopId,sn.specName,sv.specValue from tb_shopCar as sp
 				join tb_goodDetail as gd on sp.goodDetailId=gd._id
 				join tb_goodSpecConfig as sc on sc.goodId=gd.goodId and gd.indexx=sc.detailIndex
 				join tb_SpecName as sn on sn.goodId=gd.goodId and sn.indexx=sc.specNameIndex
 				join tb_SpecValue as sv on sv.goodId=gd.goodId and sv.indexx=sc.specValueIndex
-				where sp.mid=${userId} order by sp.creaTime desc;`
+				where sp.mid=${userId} and sp.isBuy=0 order by sp.creaTime desc;`
 		})
 		let shopCarInfo = []
 		let start = 0;
@@ -197,5 +198,155 @@ exports.messageBeRead = (ws, info) => {
 		db.executeNoQuery(`update tb_chat set isRead=1 where sender=${info.content} and receiver=${ws._sender._socket.token.userId};`)
 	}catch(err) {
 		console.error('ws/users/messageBeRead', err.message)
+	}
+}
+
+// 获取收货地址
+exports.getAddress = async (ws) => {
+	try {
+		const address = await db.executeReader(`select mid,receiveName,address,phone,postcode,isDefault from tb_address where mid=${ws._sender._socket.token.userId} and isDrop=0;`)
+		for (let i = 0, len = address.length; i < len; i++) {
+			address[i].isDefault = address[i].isDefault.readInt8(0)
+		}
+		ws.send(JSON.stringify({
+			type: 'get_address',
+			content: address
+		}))
+	}catch(err) {
+		console.error('/ws/users/getAddress', err.message)
+	}
+}
+
+// 删除收货地址
+exports.deleteAddress = async (ws, info) => {
+	if (!info || !validator.isInt(info.content)) return;
+	try {
+		const drop = await db.executeNoQuery(`update tb_address set isDrop=1 where _id=${info.content} and mid=${ws._sender._socket.token.userId};`)
+		if (drop > 0) {
+			exports.getAddress(ws)
+		}
+	}catch(err) {
+		console.error('/ws/users/deleteAddress', err.message)
+	}
+}
+
+/**
+ * 保存收货地址
+ * @param editState -1 添加，>-1修改
+ * @return {[type]}      [description]
+ */
+exports.saveAddress = async (ws, info) => {
+	const ads = info.content
+	if (validator.isEmpty(ads) ||
+		!/\d+/.test(ads.editState) ||
+		!validator.isLength(ads.detailAddress,{min:5,max:200}) ||
+		!validator.isLength(ads.receiveName, {min: 2, max: 10}) ||
+		!validator.isPhone(ads.receivePhone) ||
+		!/^[1-9]\d{5}$/.test(ads.postcode)
+	) {
+		return
+	}
+	try {
+		// 如果当前地址是默认地址，修改其他为非默认
+		if (ads.isDefault) {
+			await db.executeNoQuery(`update tb_address set isDefault=0 where mid=${ws._sender._socket.token.userId};`)
+		}
+		let result;
+		if (ads.editState === -1) {
+			result = await db.executeNoQuery(`insert into tb_address(mid,receiveName,address,phone,postcode,isDefault) values(${ws._sender._socket.token.userId},'${ads.receiveName}','${ads.detailAddress}','${ads.receivePhone}','${ads.postcode}',${ads.isDefault ? 1 : 0});`)
+		}else {
+			result = await db.executeNoQuery(`update tb_address set receiveName='${ads.receiveName}',address='${ads.detailAddress}',phone='${ads.receivePhone}',postcode='${ads.postcode}',isDefault=${ads.isDefault ? 1 : 0} where mid=${ws._sender._socket.token.userId} and _id=${ads.editState};`)
+		}
+		if (result > 0) {
+			exports.getAddress(ws)
+		}
+	}catch(err) {
+		console.error('/ws/users/saveAddress', err.message)
+	}
+}
+
+// 判断订单状态
+const judgeOrderState = (order) => {
+	return order.isSend.readInt8(0) === 0 ? 'waitSend' :
+		order.isSign.readInt8(0) === 0 ? 'waitSign' :
+		order.isComment.readInt8(0) === 0 ? 'waitComment' : 'finish'
+}
+
+exports.getOrders = async (ws, info) => {
+	if (!/^\d+$/.test(info.content.limit)) return;
+	try {
+		let sql = {
+			orders: `
+				select o._id,o.orderno,o.sumPrice,o.isPay,o.isClose,o.creaTime,
+				od.price,od.number,od.message,od.isSend,od.isSign,od.isComment,
+				g._id as goodId,g.goodName,g.logo,s.storeName
+				from tb_order o 
+				join tb_address ads on o.addressId=ads._id
+				join tb_orderDetail od on od.orderno=o.orderno
+				join tb_goodDetail gd on od.goodDetailId=gd._id
+				join tb_goods g on gd.goodId=g._id
+				join tb_store s on g.storeId=s._id
+				where o.mid=${ws._sender._socket.token.userId} order by o.creaTime desc limit ${info.content.limit || 0},50;
+			`}
+		// if (info.limit === 0) {
+		// 	sql.count = `select count(1) from tb_orderDetail od join tb_order o on od.orderno=o.orderno where mid=2;`
+		// }
+		const { orders } = await db.executeReaderMany(sql)
+		if (orders.length === 0) return;
+		let o = []
+		let status = {
+			waitPay: 0,
+			waitSend: 0,
+			waitSign: 0,
+			waitComment: 0,
+			finish: 0
+		}
+		for (let i = 0, len = orders.length, findone, oneself; i < len; i++) {
+			findone = o.find(order => order._id === orders[i]._id)
+			if (findone) {
+				findone.products.push(orders[i])
+				// 判断订单状态
+				if (findone.isPay === 1) {
+					status[judgeOrderState(orders[i])] ++
+				}
+			}else {
+				o.push({
+					_id: orders[i]._id,
+					orderno: orders[i].orderno,
+					sumPrice: orders[i].sumPrice,
+					isPay: orders[i].isPay.readInt8(0),
+					isClose: orders[i].isClose.readInt8(0),
+					creaTime: orders[i].creaTime,
+					products: [orders[i]]
+				})
+				// 判断订单状态
+				if (orders[i].isPay.readInt8(0) === 0) {
+					status.waitPay ++
+				}else {
+					status[judgeOrderState(orders[i])] ++
+				}
+			}
+			delete orders[i]._id
+			delete orders[i].orderno
+			delete orders[i].sumPrice
+			delete orders[i].isPay
+			delete orders[i].isClose
+			delete orders[i].creaTime
+			orders[i].isSend = orders[i].isSend.readInt8(0)
+			orders[i].isSign = orders[i].isSign.readInt8(0)
+			orders[i].isComment = orders[i].isComment.readInt8(0)
+		}
+		ws.send(JSON.stringify({
+			type: 'get_orders',
+			content: {
+				end: orders.length < 50,
+				limit: info.limit || 0,
+				status,
+				orders: o
+			}
+		}))
+		// console.log(o)
+	}catch(err) {
+		console.error('/ws/users/getOrders', err.message)
 	}
 }

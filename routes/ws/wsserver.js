@@ -28,7 +28,9 @@ const wsserver = {
 		wss.sendMsg = function(message) {
 			for (let ws of wss.clients) {
 				if (ws._sender._socket.token.userId === message.target) {
-					ws.send(JSON.stringify(message))
+					if (ws.readyState === WebSocket.OPEN) {
+						ws.send(JSON.stringify(message))
+					}
 					break
 				}
 			}
@@ -103,11 +105,18 @@ const wsserver = {
 						break
 					case 'msg_be_read': // 消息已读
 						users.messageBeRead(ws, info)
-						break;
-					// case 'buffer_start':
-					// 	ws._sender._socket.filename = info.filename
-					// case 'buffer_end':
-					// 	delete ws._sender._socket.filename
+						break
+					case 'get_address': // 获取收货地址
+						users.getAddress(ws)
+						break
+					case 'delete_address':  // 删除收货地址
+						users.deleteAddress(ws, info)
+						break
+					case 'save_address':  // 保存收货地址
+						users.saveAddress(ws, info)
+						break
+					case 'get_orders': // 获取订单
+						users.getOrders(ws, info)
 					default:
 						return
 		    	}

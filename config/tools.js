@@ -80,18 +80,26 @@ function randomStr(length) {
 	}
 }
 
-// 生成 number(订货编号)函数，16位
-function getOrderno() {
-    var date = new Date(),
-        year = (date.getFullYear()+ "").substring(2,4),
-        month = date.getMonth(),
-        day = date.getDate(),
-        unique = Date.now() * Math.random() + "";
-    return (unique.substring(0,6) + year +
-            (month > 9 ? month : "0" + month) +
-            (day > 9 ? day : "0" + day) + 
-            unique.substring(6,10));
-}
+// function getOrderno() {
+//     var date = new Date(),
+//         year = (date.getFullYear()+ "").substring(2,4),
+//         month = date.getMonth(),
+//         day = date.getDate(),
+//         unique = Date.now() * Math.random() + "";
+//     return (unique.substring(0,6) + year +
+//             (month > 9 ? month : "0" + month) +
+//             (day > 9 ? day : "0" + day) + 
+//             unique.substring(6,10));
+// }
+// 生成 number(订货编号)函数，18位
+const getOrderno = (function() {
+	let count = 10233
+	return () => {
+        count = count + Math.floor(9 * Math.random()) +1
+       	if (count > 99999) { count = 10345 }
+	    return `${Date.now()}${count}`
+	}
+}())
 
 function formatDate() {
 	let date = new Date()

@@ -16,6 +16,7 @@ const validator = require('../../validation/validator');
 const validateRegister = require('../../validation/register');
 const loginValidator = require('../../validation/loginValidator');
 const tokenValidator = require('../../validation/tokenValidator')
+const smsCodeValidator = require('../../validation/smsCodeValidator')
 
 
 /**
@@ -147,6 +148,7 @@ router.post('/login', async ctx => {
 		}
 		// 该用户是店家
 		if (dbuser.isBusiness === 1) {
+
 			queryUserInfo.store = `select _id,storeName,click,storeStatus,isAudit from tb_store where mid=${dbuser._id};`
 		}
 		const userInfo = await db.executeReaderMany(queryUserInfo)
@@ -219,7 +221,7 @@ router.post('/phonelogin', async ctx => {
 		dbuser = dbuser[0]
 		// 查收货地址和店铺信息
 		const queryUserInfo = {
-			address: `select _id,mid,receiveName,address,phone,postcode,isDefault from tb_address where mid=${dbuser._id};`
+			// address: `select _id,mid,receiveName,address,phone,postcode,isDefault from tb_address where mid=${dbuser._id};`
 		}
 		// 该用户是店家
 		if (dbuser.isBusiness === 1) {
@@ -302,18 +304,9 @@ router.post('/nickname', async ctx => {
  * @desc 传入 memberId ，查询收货地址
  * @access 携带 token 访问
  */
-router.post('/address', async ctx => {
-	const token = tokenValidator(ctx)
-	if (!token.isvalid) return ctx.body = {success: false, message: '请登录后操作', code: '1002'}
-	const memberId = token.payload.userId
-	try {
-		const address = await db.executeReader(`select mid, receiveName, address,phone,postcode from tb_address where mid=${memberId};`)
-		ctx.body = {success: true, code: '0000', message: 'OK', payload: address}
-	}catch(err) {
-		console.error('/api/users/address', err.message)
-		ctx.body = {success: false, code: '9999', message: err.message}
-	}
-})
+// router.post('/address', async ctx => {
+	
+// })
 
 
 /**
@@ -337,68 +330,6 @@ router.get('/get_property', async ctx => {
 		ctx.body = {success: false, code: '9999', message: 'server busy'}
 	}
 })
-
-/**
- * @route GET /api/users/chat_msg
- * @desc 查询消息记录
- * @access 携带 token 访问
- */
-// router.get('/chat_msg', async ctx => {
-// 	const token = tokenValidator(ctx)
-// 	if (!token.isvalid) {
-// 		 return ctx.body = {success: false, message: '请登录后操作', code: '1002'}
-// 	}
-// 	let userId = token.payload.userId
-// 	try {
-// 		const result = await db.executeReaderMany({
-// 			messages: `SELECT c.isRead,c.sender, c.receiver,c.content,c.creaTime,m.avatar as senderAvatar,m.nickname as senderNickname,m2.avatar as receiverAvatar,m2.nickname as receiverNickname FROM tb_chat c JOIN tb_member m ON c.sender = m._id JOIN tb_member m2 ON c.receiver = m2._id 
-// 				WHERE(c.receiver = ${userId}
-// 					AND c.isRead = 0)
-// 					or c.sender=${userId}
-// 				ORDER BY
-// 					c.creaTime asc
-// 					LIMIT 100;`
-// 		})
-// 		// 整合消息
-// 		let messages = [{}]
-// 		let senderIsMe = false;
-// 		for (let i = 0, length = result.messages.length; i < length; i++) {
-// 			for (let j = 0, len = messages.length; j < len; j++) {
-// 				if (result.messages[i].receiver === messages[j].userId || result.messages[i].sender === messages[j].userId) {
-// 					messages[j].content.push({
-// 						sender: result.messages[i].sender,
-// 						msg: result.messages[i].content,
-// 						creaTime: result.messages[i].creaTime
-// 					})
-// 					if (result.messages[i].receiver === userId && result.messages[i].isRead.readInt8(0) === 0) {
-// 						messages[j].notRead = messages[j].notRead ? messages[j].notRead + 1 : 1
-// 					}
-// 					break
-// 				}
-// 				if (j === len-1) {
-// 					senderIsMe = result.messages[i].sender === userId
-// 					let item = {
-// 						userId: senderIsMe ? result.messages[i].receiver : result.messages[i].sender,
-// 						avatar: senderIsMe ? result.messages[i].receiverAvatar : result.messages[i].senderAvatar,
-// 						nickname: senderIsMe ? result.messages[i].receiverNickname : result.messages[i].senderNickname,
-// 						notRead: !senderIsMe && result.messages[i].isRead.readInt8(0) === 0 ? 1 : 0,
-// 						content: [{
-// 							sender: result.messages[i].sender,
-// 							msg: result.messages[i].content,
-// 							creaTime: result.messages[i].creaTime,
-// 						}]
-// 					}
-// 					if (i === 0) { messages[0] = item }else {messages.push(item)}
-// 				}
-// 			}
-// 		}
-// 		result.messages = messages
-// 		ctx.body = {success: true, code: '0000', message: 'OK', payload: result}
-// 	}catch(err) {
-// 		console.error('/api/users/address', err.message)
-// 		ctx.body = {success: false, code: '9999', message: 'server busy'}
-// 	}
-// })
 
 /**
  * @route GET /api/users/get_property
@@ -435,17 +366,63 @@ router.post('/save_chat_image', koaBody({ multipart: true }), async ctx => {
 router.get('/search_contacts', async ctx => {
 	const info = url.parse(ctx.request.url, true).query;
 	if (info.keyword === '' || info.keyword === undefined) {
-		return ctx.body = {success: false, code: '1004', message: 'empty keyword'};
+		return ctx.body = {success: false, code: '1004', message: 'empty keyword'}
 	}
 	const token = tokenValidator(ctx)
 	if (!token.isvalid) {
-		return ctx.body = {success: false, code: '1004', message: 'empty keyword'};
+		return ctx.body = {success: false, code: '1004', message: '请登录后操作'}
 	}
 	try {
 		const contacts = await db.executeReader(`select m._id as userId,m.nickname,m.avatar from tb_member as m left join (select contacts from tb_contacts where userId=${token.payload.userId}) as c on m._id=c.contacts where m.nickname like '%${info.keyword}%' and c.contacts is null;`)
 		ctx.body = {success: true, payload: contacts}
 	}catch(err) {
 		console.error('/api/users/search_contacts', err.message)
+		ctx.body = {success: false, code: '9999', message: 'server busy'}
+	}
+})
+
+/**
+ * @route /api/users/modify_safety
+ * @desc 修改邮箱 {newEmail,smsCode} 或 手机号码{newPhone,smsCode}
+ * @access 携带 token 访问
+ */
+
+router.post('/modify_safety', async ctx => {
+	const token = tokenValidator(ctx)
+	if (!token.isvalid) {
+		return ctx.body = {success: false, code: '1004', message: '请登录后操作'}
+	}
+	const body = ctx.request.body
+	try {
+		if (validator.isEmail(body.newEmail) && /^\d{5,6}$/.test(body.smsCode)) {
+			// 修改邮箱
+			// 验证短信验证码
+			const smsValid = await smsCodeValidator(body.smsCode, false, token.payload.userId)
+			if (!smsValid.isvalid) {
+				return ctx.body = {success: false, message: smsValid.message}
+			}
+			let emailResult = await db.executeNoQuery(`update tb_member set email='${body.newEmail}' where _id=${token.payload.userId};`)
+			if (emailResult === 0) {
+				return ctx.body = {success: false, code: '9999', message: '未知错误'}
+			}
+			ctx.body = {success: true, message: 'OK', code: '0000'}
+		}else if (validator.isPhone(body.newPhone) && /^\d{5,6}$/.test(body.smsCode)) {
+			// 修改手机号码
+			// 验证短信验证码
+			const smsValid = await smsCodeValidator(body.smsCode, false, token.payload.userId)
+			if (!smsValid.isvalid) {
+				return ctx.body = {success: false, message: smsValid.message}
+			}
+			let phoneResult = await db.executeNoQuery(`update tb_member set phone='${body.newPhone}' where _id=${token.payload.userId};`)
+			if (phoneResult === 0) {
+				return ctx.body = {success: false, code: '9999', message: '未知错误'}
+			}
+			ctx.body = {success: true, message: 'OK', code: '0000'}
+		}else {
+			ctx.body = {success: false, code: '1004', message: '参数错误'}
+		}
+	}catch(err) {
+		console.error('/api/users/modify_safety', err.message)
 		ctx.body = {success: false, code: '9999', message: 'server busy'}
 	}
 })

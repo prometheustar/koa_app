@@ -11,6 +11,15 @@ function isPhone(value) {
 		/^[1][\d]{10}$/.test(value);
 }
 
+const isLength = (value, opts) => {
+	if (typeof value !== 'string') return false;
+	return (value.length >= opts.min && value.length <= opts.max)
+}
+
+function isEmail(email) {
+	return /^[A-z\d]+([-_.][A-z\d]+)*@([A-z\d]+[-.])+[A-z\d]{2,4}$/.test(email)
+}
+
 function isInt(value) {
 	return /^\d+$/.test(value)
 }
@@ -179,23 +188,41 @@ function addProductValidator(info, files) {
 // api/users/submit_order 参数验证
 // goodDetailIds(intArr)  numbers(intArr) addressId(int)
 function submitOrderValidator(info) {
-	let ans = { isvalid: false, message: '接口参数错误' }
+	let ans = { isvalid: false, message: '订单数据有误' }
 	if (isEmpty(info)) { return ans }
 	if (!Array.isArray(info.goodDetailIds) || info.goodDetailIds.length < 1) {
 		return ans
 	}
-
-	if (!Array.isArray(info.numbers) || info.numbers.length < 1 || info.numbers.length !== info.goodDetailIds.length || info.messages.length !== info.numbers.length) {
+	if (!/^[1-9]\d*$/.test(info.addressId)) {
+		return ans
+	}
+	if (!Array.isArray(info.numbers) ||
+		info.numbers.length < 1 ||
+		info.numbers.length !== info.goodDetailIds.length ||
+		!Array.isArray(info.messages) ||
+		info.messages.length !== info.numbers.length ||
+		(Array.isArray(info.shopCarIds) && info.shopCarIds.length !== info.numbers.length)  // 有购物车Ids并且购物车长度不匹配
+	) {
 		return ans
 	}else {
-		for (let len = info.numbers.length -1; len >= 0; len--) {
+		let comeFromShopCar = false
+		if (Array.isArray(info.shopCarIds)) {
+			ans.updateShopCarSQL = 'update tb_shopCar set isBuy=1 where _id in ('
+			comeFromShopCar = true
+		}
+		for (let len = info.numbers.length -1, end = ','; len >= 0; len--) {
 			if (!/^[1-9]\d*$/.test(info.numbers[len]) || !/^[1-9]\d*$/.test(info.goodDetailIds[len])) {
 				return ans
 			}
+			// 拼接购物车更新 SQL语句
+			if (comeFromShopCar) {
+				if (!/^[1-9]\d*$/.test(info.shopCarIds[len])) {
+					return ans
+				}
+				if (len === 0) { end = ');' }
+				ans.updateShopCarSQL += `${info.shopCarIds[len]}${end}`
+			}
 		}
-	}
-	if (!/^[1-9]\d*$/.test(info.addressId)) {
-		return ans
 	}
 	ans.isvalid = true;
 	ans.message = 'OK'
@@ -203,9 +230,10 @@ function submitOrderValidator(info) {
 }
 
 module.exports = {
-	isLength: validator.isLength,
 	equals: validator.equals,
-	isEmail: validator.isEmail,
+	isLength,
+	isInt,
+	isEmail,
 	isEmpty,
 	isPhone,
 	searchProductValidator,
