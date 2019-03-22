@@ -38,7 +38,7 @@ app.use(serverRender)
  * 静态文件目录
  */
 app.use(static(path.resolve(__dirname, './views'), {
-    maxage: 3600,  // Cache-Control: 缓存 1小时
+    maxage: 86400000,  // Cache-Control: 缓存 1天
 }));
 
 // 解析post 请求体
