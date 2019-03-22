@@ -10,6 +10,7 @@ const routes = [
 	'/',
 	'/register',
 	'/login',
+	'/login/account',
 	'/search_product',
 	'/search_products',
 	'/product_detail',

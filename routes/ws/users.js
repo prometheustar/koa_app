@@ -204,7 +204,7 @@ exports.messageBeRead = (ws, info) => {
 // 获取收货地址
 exports.getAddress = async (ws) => {
 	try {
-		const address = await db.executeReader(`select mid,receiveName,address,phone,postcode,isDefault from tb_address where mid=${ws._sender._socket.token.userId} and isDrop=0;`)
+		const address = await db.executeReader(`select _id,mid,receiveName,address,phone,postcode,isDefault from tb_address where mid=${ws._sender._socket.token.userId} and isDrop=0;`)
 		for (let i = 0, len = address.length; i < len; i++) {
 			address[i].isDefault = address[i].isDefault.readInt8(0)
 		}
@@ -237,6 +237,7 @@ exports.deleteAddress = async (ws, info) => {
  */
 exports.saveAddress = async (ws, info) => {
 	const ads = info.content
+		console.log(ads)
 	if (validator.isEmpty(ads) ||
 		!/\d+/.test(ads.editState) ||
 		!validator.isLength(ads.detailAddress,{min:5,max:200}) ||

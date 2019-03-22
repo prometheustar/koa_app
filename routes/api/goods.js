@@ -70,7 +70,7 @@ router.get('/product_logo', async ctx => {
 			const product = await db.executeReader(`select logo from tb_goods where _id=${info.goodId}`)
 			if (product.length > 0) { logo = product[0].logo }
 		}
-		const image = await readFile(path.join(__dirname, '../../views/image/goods/logo/' + logo))
+		const image = await readFile(path.join(__dirname, `../../views/image/goods/logo/${logo}_210x210q90.jpg`))
 		ctx.response.type = 'image/jpeg'
 		ctx.body = image
 	}catch(err) {

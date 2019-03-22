@@ -19,10 +19,11 @@ Decimal.set({
   toExpPos: 21
 });
 
-
 /**
- * 根据商品的的店家判断生成几个订单
+ * 商品按不同店铺分成多个订单，if 购物车 => 已购买，
+ * @route GET /api/order/submit_order
  * params  goodDetailId [1,2,...] , numbers[1,2,...] , addressId(int) , shopCatIds(arr)yes or no
+ * @access 携带 token 访问
  */
 router.post('/submit_order', async ctx => {
 	// token 验证
@@ -57,13 +58,6 @@ router.post('/submit_order', async ctx => {
 		goodDetailSQL.products += `${param.goodDetailIds[i]},`
 	}
 	try {
-		/**
-		 * 1.进行地址验证，必须是登录用户自己的收货地址
-		 * 2.商品按不同店铺分成多个订单
-		 * 3.插入订单订单数据库，
-		 * 4.更新库存数据库，if 购物车 => 已购买，
-		 * 4.返回支付二维码，金额
-		 */
 		const goodDetailAns = await db.executeReaderMany(goodDetailSQL)
 		if (goodDetailAns.products.length !== param.goodDetailIds.length || goodDetailAns.address.length < 1) {
 			return ctx.body = {success: false, message: '订单数据异常', code: '1011'}
@@ -104,6 +98,9 @@ router.post('/submit_order', async ctx => {
 		orderSQL.order = orderSQL.order.replace(/,$/, ';')
 		orderSQL.orderDetail = orderSQL.orderDetail.replace(/,$/, ';')
 		const orderAns = await db.executeNoQueryMany(orderSQL)
+		if (orderAns.order !== ordernos.length) {
+			return ctx.body = {success: false, message: '未知错误', code: '1011'}
+		}
 		// 执行成功后返回付款二维码，金额
 		const totalSumPrice = sumPrice.reduce((prev, now) => now.plus(prev), 0).toString()
 		const alipayURL = await alipay(ordernos, totalSumPrice)
@@ -122,84 +119,6 @@ router.post('/submit_order', async ctx => {
 	}
 })
 
-
-/**
- * @route GET /api/order/submit_order
- * @props  goodDetailIds(intArr) numbers(intArr) messages(stringArr) addressId(int)
- * @access 携带 token 访问
- */
-router.post('/submit_order2', async ctx => {
-	// token 验证
-	const tokenValid = tokenValidator(ctx)
-	if (!tokenValid.isvalid) {
-		return ctx.body = {success: false, message: '没有访问权限', code: '1002'}
-	}
-	// 接口参数验证
-	const param = ctx.request.body
-	const orderValid = validator.submitOrderValidator(param)
-	if (!orderValid.isvalid) {
-		return ctx.body = {success: false, message: orderValid.message, code: '1002'}
-	}
-	// 验证通过，插入数据库
-	const orderno = tools.getOrderno()
-	let goodDetailSql = []
-	// 根据 detailId 查询商品详情
-	for (let i = 0, len = param.goodDetailIds.length; i < len; i++) {
-		goodDetailSql[i] = `select _id,amount,price from tb_goodDetail where _id=${param.goodDetailIds[i]} and state=0 and amount>0;`
-	}
-	try {
-		// 进行地址验证，必须是登录用户自己的收货地址
-		goodDetailSql.address = `select _id from tb_address where _id=${param.addressId} and mid=${tokenValid.payload.userId};`
-		const goodDetailAns = await db.executeReaderMany(goodDetailSql)
-		if (goodDetailAns.address.length < 1) {
-			return ctx.body = {success: false, message: '收货地址异常', code: '1011'}
-		}
-		// 验证结果，生成 insertOrderDetailSql
-		let insertOrderDetailSql = 'insert into tb_orderDetail(orderno,goodDetailId,price,number,message) values'
-		let updateGoodDetail = [] // 更新库存量
-		let sumPrice = new Decimal(0)  // 使用 Decimal 计算价格
-		for (let i = 0, len = param.numbers.length; i < len; i++) {
-			if (goodDetailAns[i].length < 1 || goodDetailAns[i][0].amount < param.numbers[i]) {
-				return ctx.body = {success: false, message: '商品未在售或数量超过库存', code: '1002'}
-			}
-			updateGoodDetail[i] = `update tb_goodDetail set amount=amount-${param.numbers[i]} where _id=${goodDetailAns[i][0]._id};`
-			let end = i === len-1 ? ';' : ','
-			let price = new Decimal(goodDetailAns[i][0].price).times(param.numbers[i])
-			sumPrice = sumPrice.plus(price)
-			insertOrderDetailSql += `('${orderno}',${goodDetailAns[i][0]._id},${price.toNumber()},${param.numbers[i]},'${param.messages[i]}')${end}`
-		}
-		if (!/^[1-9]\d*(\.\d{1,2}|)$/.test(sumPrice.toString())) {
-			return ctx.body = {success: false, message: '订单生成失败', code: '9999'}
-		}
-		// 生成 insertOrderSql
-		let insertOrderSql = `insert into tb_order(orderno,mid,sumPrice,addressId) values('${orderno}',${tokenValid.payload.userId},${sumPrice.toNumber()},${param.addressId});`
-		// 执行插入语句
-		const insertAns = await db.executeNoQueryMany({
-			...updateGoodDetail,  // goodDetail 库存减一
-			orderDetailAns: insertOrderDetailSql,  // lenth = param.numbers.length
-			orderAns: insertOrderSql,
-		})
-		// console.log({
-		// 	...updateGoodDetail,  // goodDetail 库存减一
-		// 	orderDetailAns: insertOrderDetailSql,  // lenth = param.numbers.length
-		// 	orderAns: insertOrderSql,
-		// })
-		// 执行成功后返回付款二维码，金额
-		const alipayURL = await alipay(orderno, sumPrice.toNumber())
-		ctx.body = {
-			success: true,
-			code: '0000',
-			payload: {
-				alipayURL,
-				sumPrice,
-				orderno,
-			}
-		}
-	}catch(err) {
-		console.error('/api/users/submit_order', err.message)
-		ctx.body = {success: false, code: '9999', message: err.message}
-	}
-})
 
 /**
  * 支付宝支付成功回调接口
