@@ -237,7 +237,6 @@ exports.deleteAddress = async (ws, info) => {
  */
 exports.saveAddress = async (ws, info) => {
 	const ads = info.content
-		console.log(ads)
 	if (validator.isEmpty(ads) ||
 		!/\d+/.test(ads.editState) ||
 		!validator.isLength(ads.detailAddress,{min:5,max:200}) ||
