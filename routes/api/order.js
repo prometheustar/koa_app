@@ -2,6 +2,9 @@ const KoaRouter = require('koa-router');
 const router = new KoaRouter();
 const Decimal = require('decimal.js-light')
 const md5 = require('md5')
+const koaBody = require('koa-body')
+const path = require('path')
+const sharp = require('sharp')
 
 const db = require('../../config/mysqldb.js')
 const tools = require('../../config/tools')
@@ -10,7 +13,7 @@ const alipay = require('../../config/alipay')
 const tokenValidator = require('../../validation/tokenValidator')
 const validator = require('../../validation/validator')
 const socket = require('../ws/wsserver')
-
+const { addCloseOrder } = require('../../config/closeOrderQueue')
 // 设置 Decimal 计算精度
 Decimal.set({
   precision: 10,
@@ -101,6 +104,9 @@ router.post('/submit_order', async ctx => {
 		if (orderAns.order !== ordernos.length) {
 			return ctx.body = {success: false, message: '未知错误', code: '1011'}
 		}
+		ordernos.forEach(orderno => {
+			addCloseOrder(orderno)
+		})
 		// 执行成功后返回付款二维码，金额
 		const totalSumPrice = sumPrice.reduce((prev, now) => now.plus(prev), 0).toString()
 		const alipayURL = await alipay(ordernos, totalSumPrice)
@@ -229,6 +235,115 @@ router.post('/send_product', async ctx => {
 		ctx.body = {success: true, code: '0000', message: 'OK'}
 	}catch(err) {
 		console.error('/api/order/send_product', err.message)
+		ctx.body = {success: false, code: '9999', message: err.message}
+	}
+})
+
+/**
+ * @route POST /api/order/pay_order
+ * @params  orderno
+ * @desc 订单付款
+ * @access 携带 token 访问
+ */
+router.post('/pay_order', async ctx => {
+	// token 验证
+	const token = tokenValidator(ctx)
+	if (!token.isvalid) {
+		return ctx.body = {success: false, message: '没有访问权限', code: '1002'}
+	}
+	if (!/^\d{18}$/.test(ctx.request.body.orderno)) {
+		return ctx.body = {success: false, message: '订单错误', code: '1002'}
+	}
+	try {
+		const order = await db.executeReader(`select sumPrice from tb_order where mid=${token.payload.userId} and orderno='${ctx.request.body.orderno}' and isPay=0 limit 1;`)
+		if (order.length === 0) {
+			return ctx.body = {success: false, message: '订单不存在', code: '1002'}
+		}
+		const alipayURL = await alipay([ctx.request.body.orderno], order[0].sumPrice)
+		ctx.body = {
+			success: true,
+			code: '0000',
+			payload: {
+				alipayURL,
+				sumPrice: order[0].sumPrice,
+				ordernos: [ctx.request.body.orderno],
+			}
+		}
+	}catch(err) {
+		console.error('/api/order/pay_order', err.message)
+		ctx.body = {success: false, code: '9999', message: err.message}
+	}
+})
+
+/**
+ * @route POST /api/order/comment_picture
+ * @params  picture 图片
+ * @desc 上传评论图片
+ * @access 携带 token 访问
+ */
+router.post('/comment_picture', koaBody({ multipart: true }), async ctx => {
+	// token 验证
+	const token = tokenValidator(ctx)
+	if (!token.isvalid) {
+		return ctx.body = {success: false, message: '没有访问权限', code: '1002'}
+	}
+	const picture = ctx.request.files.picture
+	if (!picture || !/^image\//.test(picture.type) || picture.size > 5000000) {
+		return ctx.body = {success: false, message: '图片格式错误', code: '1002'}
+	}
+	try {
+		let imgName = tools.randomStr()(picture.name)
+		let buf = await tools.moveFile(picture.path, path.join(__dirname, '../../views/image/goods/comment/' + imgName))
+		const info = await sharp(buf).resize({ width: 40, height: 40, fit:'inside' }).toFile(path.join(__dirname, `../../views/image/goods/comment/${imgName}_w40.jpg`))
+		ctx.body = {success: true, code: '0000', message: 'OK', payload:{
+			picture: imgName
+		}}
+	}catch(err) {
+		console.error('/api/order/comment_picture', err.message)
+		ctx.body = {success: false, code: '9999', message: err.message}
+	}
+	
+})
+
+/**
+ * @route POST /api/order/comment_picture
+ * @params type [0,1,2]  comment(string<200)  pictures(arr[max5])  orderDetailId(int)
+ * @desc 提交评论
+ * @access 携带 token 访问
+ */
+router.post('/submit_comment', async ctx => {
+	// token 验证
+	const token = tokenValidator(ctx)
+	if (!token.isvalid) {
+		return ctx.body = {success: false, message: '没有访问权限', code: '1002'}
+	}
+	const discuss = ctx.request.body
+	if (['0', '1', '2'].indexOf(discuss.type) === -1 ||
+		typeof(discuss.comment) !== 'string' ||
+		discuss.comment.length > 200 ||
+		!/^[1-9]\d*$/.test(discuss.orderDetailId) ||
+		!Array.isArray(discuss.pictures) ||
+		discuss.length > 5 ||
+		!discuss.pictures.reduce((prev, next) => (prev && /^\w{10}_\d{7,9}\.(jpg|jpeg|gif|icon|png)$/.test(next)), true)
+	) {
+		return ctx.body = {success: false, message: '评论格式有误', code: '1002'}
+	}
+	try {
+		const isPay = await db.executeReader(`select o.isPay from tb_orderDetail od join tb_order o on od.orderno=o.orderno where od._id=${discuss.orderDetailId} limit 1;`)
+		if (isPay.length < 1 || isPay[0].isPay.readInt8(0) === 0) {
+			return ctx.body = {success: false, message: '意外的错误', code: '1002'}
+		}
+		const updateOrder = await db.executeNoQuery(`update tb_orderDetail set isComment=1 where _id=${discuss.orderDetailId} and isSend=1 and isSign=1 and isComment=0;`)
+		if (updateOrder !== 1) {
+			return ctx.body = {success: false, message: '意外的错误', code: '1002'}
+		}
+		const insertComment = await db.executeNoQuery(`insert into tb_comments(goodDetailId,mid,content,orderDetailId,type,pictures) values((select goodDetailId from tb_orderDetail where _id=${discuss.orderDetailId}),${token.payload.userId},'${discuss.comment}',${discuss.orderDetailId},${discuss.type},'${discuss.pictures.join('@')}');`)
+		if (insertComment !== 1) {
+			return ctx.body = {success: false, message: '意外的错误', code: '1002'}
+		}
+		return ctx.body = {success: true, code: '0000', message: 'OK'}
+	}catch(err) {
+		console.error('/api/order/comment_picture', err.message)
 		ctx.body = {success: false, code: '9999', message: err.message}
 	}
 })

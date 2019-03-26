@@ -190,7 +190,7 @@ router.get('/product_detail', async ctx => {
 		const result = await db.executeReaderMany({
 			smaillPicture: `select link,pindex from tb_goodsmaillPicture where goodId=${goodId} order by pindex asc;`,
 			infoPicture: `select link,pindex from tb_goodPicture where goodId=${goodId} order by pindex asc;`,
-			comments: `select m.nickname,c.content,c.creaTime from tb_comments as c join tb_member as m on c.mid=m._id where c.goodId=${goodId} order by c.creaTime asc;`,
+			comments: `select m.nickname,c.content,c.creaTime from tb_comments as c join tb_member as m on c.mid=m._id where c.goodDetailId in (select _id from tb_goodDetail where goodId=${goodId}) order by c.creaTime asc;`,
 			specName: `select specName,indexx from tb_SpecName where goodId=${goodId} order by indexx asc;`,
 			goodDetail: `select _id,amount,price,indexx,state,isDisable from tb_goodDetail where goodId=${goodId} order by indexx asc;`
 		})

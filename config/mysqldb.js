@@ -73,13 +73,19 @@ function executeReaderMany(sql_strs) {
  * 传入 update delete insert sql 语句
  * 返回受影响的行数
  */
-function executeNoQuery(sql_str) {
+function executeNoQuery(sql_str, callback) {
 	return new Promise((resolve, reject) => {
 		executeReader(sql_str)
 			.then(result => {
+				if (typeof(callback) === 'function') {
+					callback(null, result.affectedRows)
+				}
 				resolve(result.affectedRows);
 			})
 			.catch(err => {
+				if (typeof(callback) === 'function') {
+					callback(err)
+				}
 				reject(err);
 			});
 	});

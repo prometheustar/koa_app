@@ -6,7 +6,7 @@ const db = require('../../config/mysqldb')
 
 const users = require('./users')
 const chat = require('./chat')
-
+const order = require('./order')
 const wsserver = {
 	wss: null,
 	initSocket: function(server) {
@@ -116,7 +116,10 @@ const wsserver = {
 						users.saveAddress(ws, info)
 						break
 					case 'get_orders': // 获取订单
-						users.getOrders(ws, info)
+						order.getOrders(ws, info)
+						break
+					case 'sign_order': // 签收订单
+						order.signOrder(ws, info)
 					default:
 						return
 		    	}

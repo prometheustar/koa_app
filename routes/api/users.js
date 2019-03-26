@@ -300,16 +300,6 @@ router.post('/nickname', async ctx => {
 });
 
 /**
- * @route GET /api/users/nickname
- * @desc 传入 memberId ，查询收货地址
- * @access 携带 token 访问
- */
-// router.post('/address', async ctx => {
-	
-// })
-
-
-/**
  * @route GET /api/users/get_property
  * @desc 查询账户余额
  * @access 携带 token 访问
@@ -427,4 +417,32 @@ router.post('/modify_safety', async ctx => {
 	}
 })
 
+
+/**
+ * @route /api/users/user_info
+ * @desc 修改邮箱 {newEmail,smsCode} 或 手机号码{newPhone,smsCode}
+ * @access 携带 token 访问
+ */
+router.get('/user_info', async ctx => {
+	const token = tokenValidator(ctx)
+	if (!token.isvalid) {
+		return ctx.body = {success: false, code: '1004', message: '请登录后操作'}
+	}
+	try {
+		const userInfo = await db.executeReader(`select nickname,phone,reallyName,idCard,gender,email,avatar,birth,entryDate,lastLogin from tb_member where _id=${token.payload.userId} limit 1;`)
+		if (userInfo.length > 1) {
+			return ctx.body = {success: false, code: '1004', message: 'unknow error'}
+		}
+		ctx.body = {success: true, message: 'OK', code: '0000', payload: {userInfo: {
+			...userInfo[0], 
+			phone: tools.transPhone(userInfo[0].phone),
+			email: tools.transEmail(userInfo[0].email),
+			idCard: tools.transIDCard(userInfo[0].idCard),
+			reallyName: typeof(userInfo[0].reallyName) === 'string' ? '**' + userInfo[0].reallyName[userInfo[0].reallyName.length-1] : userInfo[0].reallyName
+		}}}
+	}catch(err) {
+		console.error('/api/users/user_info', err.message)
+		ctx.body = {success: false, code: '9999', message: 'server busy'}
+	}
+})
 module.exports = router.routes()

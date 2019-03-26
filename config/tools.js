@@ -18,8 +18,26 @@ function getSMSCode() {
 }
 // 转换手机号
 function transPhone(p) {
+	if (typeof(p) !== 'string')	
+		return p
 	return (p[0] + p[1] + p[2] + '****' + p[7] + p[8] + p[9] + p[10]);
 }
+// 转换身份证
+function transIDCard(id) { 
+	if (typeof(id) !== 'string')	
+		return id
+	return id.substring(0,3) + '****' + id.substring(14)
+}
+// 转换邮箱
+function transEmail(email) {
+	if (typeof(email) !== 'string')	
+		return email
+	var tit = email.match(/^\w+(?=@)/g)
+	if (!tit) return email;
+	return email.replace(/^\w+(?=@)/g, tit[0][0] + "***" + tit[0][tit[0].length-1])
+}
+
+
 // 文件读取
 function readFile(url) {
 	return new Promise((resolve, reject) => {
@@ -43,26 +61,26 @@ function moveFile(before, next, callback) {
 		readerStream.on('end',function() {
 			// 标记文件结尾
 		   writeStream.end()
+		   if (typeof(callback) === 'function')
+				callback(null, buf)
+		   resolve(buf)
 		   // 删除缓存的文件
 		   fs.unlink(before, (err) => {
 				if (err) {console.error('moveFile/rmfile', err.message)}
 		   })
-		   resolve(buf)
-		   if (typeof(callback) === 'function') 
-				callback(null, buf)
 		})
 
 		readerStream.on('error', (err) => {
 			console.error('moveFile/readerStream', err)
-			reject(err)
-		   	if (typeof(callback) === 'function') 
+		   	if (typeof(callback) === 'function')
 				callback(err)
+			reject(err)
 		})
 		writeStream.on('error', (err) => {
 			console.error('moveFile/writeStream', err)
-			reject(err)
-		   	if (typeof(callback) === 'function') 
+		   	if (typeof(callback) === 'function')
 				callback(err)
+			reject(err)
 		})
 	})
 }
@@ -117,6 +135,8 @@ module.exports = {
 	enbcrypt,
 	getSMSCode,
 	transPhone,
+	transIDCard,
+	transEmail,
 	readFile,
 	moveFile,
 	randomStr,
