@@ -1,3 +1,4 @@
+const WebSocket = require('ws')
 const db = require('../../config/mysqldb')
 const validator = require('../../validation/validator')
 
@@ -28,13 +29,14 @@ exports.getShopCarInfo = async ws => {
 				}
 			}
 		}
-
-		ws.send(JSON.stringify({
-			type: 'get_shop_cat',
-			origin: 'koa',
-			target: userId,
-			content: shopCarInfo
-		}))
+		if (ws.readyState === WebSocket.OPEN) {
+			ws.send(JSON.stringify({
+				type: 'get_shop_cat',
+				origin: 'koa',
+				target: userId,
+				content: shopCarInfo
+			}))
+		}
 	}catch(err) {
 		console.error('ws/users/shopingcarinfo', err.message)
 	}
@@ -182,7 +184,6 @@ exports.getContacts = async (ws, wss) => {
 exports.addContacts = async (ws, info, wss) => {
 	try {
 		const isExist = await db.executeReader(`select count(1) as count from tb_contacts where userId=${ws._sender._socket.token.userId} and contacts=${info.content};`)
-		console.log(isExist)
 		if (isExist[0].count > 0) { return }
 		const insert = await db.executeNoQuery(`insert into tb_contacts(userId,contacts) values(${ws._sender._socket.token.userId},${info.content});`)
 		if (insert > 0) {

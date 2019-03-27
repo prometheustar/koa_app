@@ -64,11 +64,10 @@ app.on('error', (err, ctx) => {
     console.error(`/app-${Date.now()}`, err);
 });
 
-const port = process.env.PORT || 80
-
+const PORT = 80
 // listen 会返回 createServer http对象
-const server = app.listen(port, () => {
-    console.log('koa_running...' + port);
+const server = app.listen(PORT, () => {
+    console.log('koa_running...' + PORT);
     console.log('|--------------------------------|');
 });
 

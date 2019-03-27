@@ -11,8 +11,12 @@ const judgeOrderState = (order) => {
 exports.getOrders = async (ws, info) => {
 	if (info.content && info.content.limit !== undefined && !/^\d+$/.test(info.content.limit)) return;
 	try {
-		let sql = {
-			orders: `
+		// let sql = {
+		// 	orders: }
+		// if (info.limit === 0) {
+		// 	sql.count = `select count(1) from tb_orderDetail od join tb_order o on od.orderno=o.orderno where mid=2;`
+		// }
+		const orders = await db.executeReader(`
 				select o._id,o.orderno,o.sumPrice,o.isPay,o.creaTime,
 				od._id as orderDetailId,od.price,od.number,od.message,od.isSend,od.isSign,od.isComment,od.postWay,od.expNumber,
 				g._id as goodId,g.goodName,g.logo,s.storeName,s.mid as sellerId,m.nickname as sellerName,m.avatar as sellerAvatar
@@ -23,13 +27,10 @@ exports.getOrders = async (ws, info) => {
 				join tb_goods g on gd.goodId=g._id
 				join tb_store s on g.storeId=s._id
 				join tb_member m on s.mid=m._id
-				where o.mid=${ws._sender._socket.token.userId} and o.isClose=0 order by o.creaTime desc limit ${info.content.limit || 0},50;
-			`}
-		// if (info.limit === 0) {
-		// 	sql.count = `select count(1) from tb_orderDetail od join tb_order o on od.orderno=o.orderno where mid=2;`
-		// }
-		const { orders } = await db.executeReaderMany(sql)
-		if (orders.length === 0) return;
+				where o.mid=${ws._sender._socket.token.userId} and o.isClose=0 order by o.creaTime desc limit ${info.content.limit || 0},20;
+			`)
+		const orderLength = orders.length
+		if (orderLength === 0) return;
 		let o = []
 		let status = {
 			waitPay: 0,
@@ -76,7 +77,7 @@ exports.getOrders = async (ws, info) => {
 		ws.send(JSON.stringify({
 			type: 'get_orders',
 			content: {
-				end: orders.length < 50,
+				end: orderLength < 20,
 				limit: info.limit || 0,
 				status,
 				orders: o

@@ -75,6 +75,8 @@ router.get('/product_logo', async ctx => {
 		ctx.body = image
 	}catch(err) {
 		console.error('/api/goods/product_logo', err.message)
+		ctx.status = 404
+		ctx.body = 'not found'
 	}
 })
 
@@ -240,7 +242,7 @@ router.post('/add_product', koaBody({ multipart: true }), async ctx => {
 	}
 	try {
 		// 查询商品已存在
-		const product = await db.executeReader(`select _id from tb_goods where storeId=${info.storeId} and goodName='${info.goodName}';`)
+		const product = await db.executeReader(`select _id from tb_goods where storeId=${info.storeId} and goodName='${info.goodName}' limit 1;`)
 		if (product.length > 0) return ctx.body = {success: false, code: '0001', message: '商品已存在'};
 		const getImgName = randomStr()
 		const logoName = getImgName()
@@ -259,7 +261,7 @@ router.post('/add_product', koaBody({ multipart: true }), async ctx => {
 								${info.detailId},${info.storeId},'${info.goodName}','${info.goodFrom}','${logoName}',${info.nowPrice},'${goodno}');`
 		const goodsAns = await db.executeNoQuery(insertGoods)
 		if (goodsAns !== 1) return ctx.body = {success: false, code: '0001', message: '未知错误1'};
-		let goodId = await db.executeReader(`select _id from tb_goods where goodno='${goodno}';`)
+		let goodId = await db.executeReader(`select _id from tb_goods where goodno='${goodno}' limit 1;`)
 		if (goodId.length < 1) return ctx.body = {success: false, code: '0001', message: '未知错误2'};
 		goodId = goodId[goodId.length-1]._id
 

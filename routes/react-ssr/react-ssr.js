@@ -15,6 +15,9 @@ const routes = [
 	'/search_products',
 	'/product_detail',
 	'/member',
+	'/member/safety',
+	'/member/address',
+	'/member/myorder',
 	'/order',
 	'/payorder',
 ]

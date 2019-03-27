@@ -13,7 +13,7 @@ const alipay = require('../../config/alipay')
 const tokenValidator = require('../../validation/tokenValidator')
 const validator = require('../../validation/validator')
 const socket = require('../ws/wsserver')
-const { addCloseOrder } = require('../../config/closeOrderQueue')
+// const { addCloseOrder } = require('../../config/closeOrderQueue')
 // 设置 Decimal 计算精度
 Decimal.set({
   precision: 10,
@@ -104,9 +104,10 @@ router.post('/submit_order', async ctx => {
 		if (orderAns.order !== ordernos.length) {
 			return ctx.body = {success: false, message: '未知错误', code: '1011'}
 		}
-		ordernos.forEach(orderno => {
-			addCloseOrder(orderno)
-		})
+		// 将订单添加到关闭队列中
+		// ordernos.forEach(orderno => {
+		// 	addCloseOrder(orderno)
+		// })
 		// 执行成功后返回付款二维码，金额
 		const totalSumPrice = sumPrice.reduce((prev, now) => now.plus(prev), 0).toString()
 		const alipayURL = await alipay(ordernos, totalSumPrice)
@@ -160,6 +161,8 @@ router.post('/alipay_notify', async ctx => {
 		if (payAns.member.length < 1 || payAns.update.affectedRows < 1) {
 			return console.error('/alipay_notify, database miss', payAns)
 		}
+		console.log('OooO order is pay!!!')
+		console.log(payAns.member)
 		if (socket.wss !== null) {
 			socket.wss.sendMsg({
 				type: 'payOrderSuccess',

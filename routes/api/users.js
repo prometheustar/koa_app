@@ -21,7 +21,7 @@ const smsCodeValidator = require('../../validation/smsCodeValidator')
 
 /**
  * @route GET api/users/current
- * @desc 验证 token，有效重新返回登录信息
+ * @desc 验证客户端 token，有效重新返回登录信息
  * @access 接口是公开的
  */
 router.get('/current', async ctx => {
@@ -33,33 +33,15 @@ router.get('/current', async ctx => {
 	const payload = token.payload
 	delete payload.iat
 	delete payload.exp
-	// 查 address, sotreInfo
-	const queryUserInfo = {
-		address: `select _id,mid,receiveName,address,phone,postcode,isDefault from tb_address where mid=${payload.userId};`
-	}
-	if (payload.storeId !== undefined) {
-		queryUserInfo.store = `select _id,storeName,mid,nickname,click,logo from tb_store where _id=${payload.storeId} and mid=${payload.userId} and storeStatus=0 and isAudit=1;`
-	}
 	try {
-		const queryInfo = await db.executeReaderMany(queryUserInfo)
-		for (let len = queryInfo.address.length -1; len >= 0; len--) {
-			queryInfo.address[len].isDefault = queryInfo.address[len].isDefault.readInt8(0)
-		}
 		const response = {
 			success: true,
 			message: 'OK',
 			payload: {
-				user: { ...payload },
-				address: queryInfo.address
+				user: payload,
+				token: jwt.sign(payload, keys.tokenKey, {expiresIn: 60*20})  // 重新签发 token
 			}
 		}
-		if (!Array.isArray(queryInfo.store) || queryInfo.store.length < 1) {
-			delete payload.storeId
-		}else {
-			payload.storeId = queryInfo.store[0]._id
-			response.payload.store = queryInfo.store[0]
-		}
-		response.payload.token = jwt.sign(payload, keys.tokenKey, {expiresIn: 60*20})  // 重新签发 token
 		ctx.body = response
 	}catch(err) {
 		console.error('/api/users/current', err.message)
@@ -128,7 +110,7 @@ router.post('/login', async ctx => {
 		return ctx.body = {success: false, message: validation.message, code: '1004'}
 	}
 	// 查询数据库，账号是否存在
-	let query = `select _id,nickname,password,phone,gender,avatar,lastLogin,isBusiness from tb_member where ${validation.way}='${user.account}';`;
+	let query = `select _id,nickname,password,phone,gender,avatar,lastLogin,isBusiness from tb_member where ${validation.way}='${user.account}' limit 1;`;
 	try {
 		const result = await db.executeReader(query)
 		if (result.length < 1) {
@@ -136,34 +118,34 @@ router.post('/login', async ctx => {
 			return ctx.body = {success: false, code: '0001', message: '用户不存在'}
 		}
 		const dbuser = result[0];
-		dbuser.isBusiness = dbuser.isBusiness.readInt8(0)
 		// bcrypt 同步验证密码
 		if (!bcrypt.compareSync(user.password, dbuser.password)) {
 			// 验证失败
 			return ctx.body = {success: false, code: '0001', message: '密码错误'}
 		}
 		// 查收货地址和店铺信息
-		const queryUserInfo = {
-			address: `select _id,mid,receiveName,address,phone,postcode,isDefault from tb_address where mid=${dbuser._id};`
-		}
-		// 该用户是店家
-		if (dbuser.isBusiness === 1) {
+		// const queryUserInfo = {
+		// 	address: `select _id,mid,receiveName,address,phone,postcode,isDefault from tb_address where mid=${dbuser._id};`
+		// }
+		// // 该用户是店家
+		// if (dbuser.isBusiness === 1) {
 
-			queryUserInfo.store = `select _id,storeName,click,storeStatus,isAudit from tb_store where mid=${dbuser._id};`
-		}
-		const userInfo = await db.executeReaderMany(queryUserInfo)
-		// 转换地址中的 buffer
-		for (let len = userInfo.address.length -1; len >= 0; len--) {
-			userInfo.address[len].isDefault = userInfo.address[len].isDefault.readInt8(0)
-		}
+		// 	queryUserInfo.store = `select _id,storeName,click,storeStatus,isAudit from tb_store where mid=${dbuser._id};`
+		// }
+		// const userInfo = await db.executeReaderMany(queryUserInfo)
+		// // 转换地址中的 buffer
+		// for (let len = userInfo.address.length -1; len >= 0; len--) {
+		// 	userInfo.address[len].isDefault = userInfo.address[len].isDefault.readInt8(0)
+		// }
+
 		// 查询成功返回 token
 		const payload = {
 			userId: dbuser._id,
 			nickname: dbuser.nickname,
 			phone: tools.transPhone(dbuser.phone),
 			gender: dbuser.gender,
-			avatar: dbuser.avatar
-			// storeId
+			avatar: dbuser.avatar,
+			isSeller: dbuser.isBusiness.readInt8(0)
 		}
 		const response = {
 			success: true,
@@ -171,19 +153,19 @@ router.post('/login', async ctx => {
 			message: 'OK',
 			payload: {  //token: 'Bearer '+ token
 				user: payload,
-				address: userInfo.address
-				// token, store
+				// address: userInfo.address,
+				token: jwt.sign(payload, keys.tokenKey, {expiresIn: 60*20})
 			}
 		}
-		// 该用户是店家
-		if (Array.isArray(userInfo.store) && userInfo.store.length > 0) {
-			payload.storeId = userInfo.store[0]._id
-			userInfo.store[0].storeStatus = userInfo.store[0].storeStatus.readInt8(0)
-			response.payload.store = userInfo.store[0]
-		}
-		// 签发 token
-		response.payload.token = jwt.sign(payload, keys.tokenKey, {expiresIn: 60*20});
 		ctx.body = response
+		// 该用户是店家
+		// if (Array.isArray(userInfo.store) && userInfo.store.length > 0) {
+		// 	payload.storeId = userInfo.store[0]._id
+		// 	userInfo.store[0].storeStatus = userInfo.store[0].storeStatus.readInt8(0)
+		// 	response.payload.store = userInfo.store[0]
+		// }
+		// 签发 token
+		// response.payload.token = jwt.sign(payload, keys.tokenKey, {expiresIn: 60*20});
 	}catch(err) {
 		console.error('/api/users/login', err.message)
 		ctx.status = 400;
@@ -220,26 +202,26 @@ router.post('/phonelogin', async ctx => {
 		}
 		dbuser = dbuser[0]
 		// 查收货地址和店铺信息
-		const queryUserInfo = {
-			// address: `select _id,mid,receiveName,address,phone,postcode,isDefault from tb_address where mid=${dbuser._id};`
-		}
-		// 该用户是店家
-		if (dbuser.isBusiness === 1) {
-			queryUserInfo.store = `select _id,storeName,click,storeStatus,isAudit from tb_store where mid=${dbuser._id};`
-		}
-		const userInfo = await db.executeReaderMany(queryUserInfo)
-		// 转换地址中的 buffer
-		for (let len = userInfo.address.length -1; len >= 0; len--) {
-			userInfo.address[len].isDefault = userInfo.address[len].isDefault.readInt8(0)
-		}
+		// const queryUserInfo = {
+		// 	// address: `select _id,mid,receiveName,address,phone,postcode,isDefault from tb_address where mid=${dbuser._id};`
+		// }
+		// // 该用户是店家
+		// if (dbuser.isBusiness === 1) {
+		// 	queryUserInfo.store = `select _id,storeName,click,storeStatus,isAudit from tb_store where mid=${dbuser._id};`
+		// }
+		// const userInfo = await db.executeReaderMany(queryUserInfo)
+		// // 转换地址中的 buffer
+		// for (let len = userInfo.address.length -1; len >= 0; len--) {
+		// 	userInfo.address[len].isDefault = userInfo.address[len].isDefault.readInt8(0)
+		// }
 		// 查询成功返回 token
 		const payload = {
 			userId: dbuser._id,
 			nickname: dbuser.nickname,
 			phone: tools.transPhone(dbuser.phone),
 			gender: dbuser.gender,
-			avatar: dbuser.avatar
-			// storeId
+			avatar: dbuser.avatar,
+			isSeller: dbuser.isBusiness.readInt8(0)
 		}
 		const response = {
 			success: true,
@@ -247,19 +229,18 @@ router.post('/phonelogin', async ctx => {
 			message: 'OK',
 			payload: {  //token: 'Bearer '+ token
 				user: payload,
-				address: userInfo.address
-				// token, store
+				token: jwt.sign(payload, keys.tokenKey, {expiresIn: 60*20})
 			}
 		}
-		// 该用户是店家
-		if (Array.isArray(userInfo.store) && userInfo.store.length > 0) {
-			payload.storeId = userInfo.store[0]._id
-			userInfo.store[0].storeStatus = userInfo.store[0].storeStatus.readInt8(0)
-			response.payload.store = userInfo.store[0]
-		}
-		// 签发 token
-		response.payload.token = jwt.sign(payload, keys.tokenKey, {expiresIn: 60*20});
 		ctx.body = response
+		// 该用户是店家
+		// if (Array.isArray(userInfo.store) && userInfo.store.length > 0) {
+		// 	payload.storeId = userInfo.store[0]._id
+		// 	userInfo.store[0].storeStatus = userInfo.store[0].storeStatus.readInt8(0)
+		// 	response.payload.store = userInfo.store[0]
+		// }
+		// // 签发 token
+		// response.payload.token = jwt.sign(payload, keys.tokenKey, {expiresIn: 60*20});
 	}catch(err) {
 		console.error('/api/users/phonelogin', err.message);
 		ctx.status = 400;
@@ -322,6 +303,28 @@ router.get('/get_property', async ctx => {
 })
 
 /**
+ * @route GET /api/users/user_address
+ * @desc 查询收货地址
+ * @access 携带 token 访问
+ */
+router.get('/user_address', async ctx => {
+	const token = tokenValidator(ctx)
+	if (!token.isvalid) {
+		 return ctx.body = {success: false, message: '请登录后操作', code: '1002'}
+	}
+	try {
+		const address = await db.executeReader(`select _id,mid,receiveName,address,phone,postcode,isDefault from tb_address where mid=${token.payload.userId} and isDrop=0;`)
+		for (let i = 0, len = address.length; i < len; i++) {
+			address[i].isDefault = address[i].isDefault.readInt8(0)
+		}
+		ctx.body = {success: true, code: '0000', message: 'OK', payload: address}
+	}catch(err) {
+		console.error('/api/users/user_address', err.message)
+		ctx.body = {success: false, code: '9999', message: 'server busy'}
+	}
+})
+
+/**
  * @route GET /api/users/get_property
  * @desc 保存聊天图片
  * @access 携带 token 访问
@@ -363,7 +366,7 @@ router.get('/search_contacts', async ctx => {
 		return ctx.body = {success: false, code: '1004', message: '请登录后操作'}
 	}
 	try {
-		const contacts = await db.executeReader(`select m._id as userId,m.nickname,m.avatar from tb_member as m left join (select contacts from tb_contacts where userId=${token.payload.userId}) as c on m._id=c.contacts where m.nickname like '%${info.keyword}%' and c.contacts is null;`)
+		const contacts = await db.executeReader(`select m._id as userId,m.nickname,m.avatar from tb_member as m left join (select contacts from tb_contacts where userId=${token.payload.userId}) as c on m._id=c.contacts where m.nickname like '%${info.keyword}%' and m._id<>${token.payload.userId} and c.contacts is null;`)
 		ctx.body = {success: true, payload: contacts}
 	}catch(err) {
 		console.error('/api/users/search_contacts', err.message)
