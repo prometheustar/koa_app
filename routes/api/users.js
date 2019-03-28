@@ -448,4 +448,22 @@ router.get('/user_info', async ctx => {
 		ctx.body = {success: false, code: '9999', message: 'server busy'}
 	}
 })
+
+router.get('/chat_window', async ctx => {
+	const tokenValid = tokenValidator(ctx.request.url)
+	if (!tokenValid.isvalid) {
+		ctx.status = 401
+		return ctx.body = tokenValid.message
+	}
+	try {
+		const chat = (await tools.readFile(path.join(__dirname, '../../views/chat/index.html'))).toString()
+		ctx.type = "text/html;charset=utf-8"
+		ctx.body = chat.replace('__INITIAL_TOKEN_STR__', url.parse(ctx.request.url, true).query.token)
+	}catch(err) {
+		console.error('/api/users/chat_window', err.message)
+		ctx.status = 500
+		ctx.body = {success: false, code: '9999', message: 'server busy'}
+	}
+})
+
 module.exports = router.routes()
