@@ -1,5 +1,12 @@
+const WebSocket = require('ws')
 const db = require('../../config/mysqldb')
 const validator = require('../../validation/validator')
+
+const sendMessage = (ws, message) => {
+	if (ws.readyState === WebSocket.OPEN) {
+		ws.send(JSON.stringify(message))
+	}
+}
 
 // 判断订单状态
 const judgeOrderState = (order) => {
@@ -11,11 +18,6 @@ const judgeOrderState = (order) => {
 exports.getOrders = async (ws, info) => {
 	if (info.content && info.content.limit !== undefined && !/^\d+$/.test(info.content.limit)) return;
 	try {
-		// let sql = {
-		// 	orders: }
-		// if (info.limit === 0) {
-		// 	sql.count = `select count(1) from tb_orderDetail od join tb_order o on od.orderno=o.orderno where mid=2;`
-		// }
 		const orders = await db.executeReader(`
 				select o._id,o.orderno,o.sumPrice,o.isPay,o.creaTime,
 				od._id as orderDetailId,od.price,od.number,od.message,od.isSend,od.isSign,od.isComment,od.postWay,od.expNumber,
@@ -74,7 +76,7 @@ exports.getOrders = async (ws, info) => {
 			orders[i].isSign = orders[i].isSign.readInt8(0)
 			orders[i].isComment = orders[i].isComment.readInt8(0)
 		}
-		ws.send(JSON.stringify({
+		sendMessage(ws, {
 			type: 'get_orders',
 			content: {
 				end: orderLength < 20,
@@ -82,8 +84,7 @@ exports.getOrders = async (ws, info) => {
 				status,
 				orders: o
 			}
-		}))
-		// console.log(o)
+		})
 	}catch(err) {
 		console.error('/ws/users/getOrders', err.message)
 	}

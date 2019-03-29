@@ -2,34 +2,35 @@ const bcrypt = require('bcryptjs');
 const fs = require("fs");
 
 // bcryrpt同步加密密码
-function enbcrypt(password) {
+exports.enbcrypt = (password) => {
 	var salt = bcrypt.genSaltSync(10);
 	var hash = bcrypt.hashSync(password, salt);
 	return hash;
 }
 // 生成 6 位随机验证码
-function getSMSCode() {
+exports.getSMSCode = () => {
 	const smsCode = (Math.random() + "").substring(2,8);
 	if (smsCode[0] === '0') {
-		return this.getSMSCode();
+		return exports.getSMSCode();
 	}else {
 		return smsCode;
 	}
 }
 // 转换手机号
-function transPhone(p) {
+exports.transPhone = (p) => {
 	if (typeof(p) !== 'string')	
 		return p
 	return (p[0] + p[1] + p[2] + '****' + p[7] + p[8] + p[9] + p[10]);
 }
+
 // 转换身份证
-function transIDCard(id) { 
+exports.transIDCard = (id) => { 
 	if (typeof(id) !== 'string')	
 		return id
 	return id.substring(0,3) + '****' + id.substring(14)
 }
 // 转换邮箱
-function transEmail(email) {
+exports.transEmail = (email) => {
 	if (typeof(email) !== 'string')	
 		return email
 	var tit = email.match(/^\w+(?=@)/g)
@@ -39,7 +40,7 @@ function transEmail(email) {
 
 
 // 文件读取
-function readFile(url) {
+exports.readFile = (url) => {
 	return new Promise((resolve, reject) => {
 		fs.readFile(url, (err, data) => {
 			if (err) reject(err);
@@ -47,45 +48,76 @@ function readFile(url) {
 		});
 	});
 }
-// 文件移动
-function moveFile(before, next, callback) {
-	return new Promise((resolve, reject) => {
-		// 创建可读流
-		const readerStream = fs.createReadStream(before)
-		const writeStream = fs.createWriteStream(next)
-		let buf = Buffer.alloc(0)
-		readerStream.on('data', (chunk) => {
-			writeStream.write(chunk)
-			buf = Buffer.concat([buf,chunk], buf.length + chunk.length)
-		})
-		readerStream.on('end',function() {
-			// 标记文件结尾
-		   writeStream.end()
-		   if (typeof(callback) === 'function')
-				callback(null, buf)
-		   resolve(buf)
-		   // 删除缓存的文件
-		   fs.unlink(before, (err) => {
-				if (err) {console.error('moveFile/rmfile', err.message)}
-		   })
-		})
 
-		readerStream.on('error', (err) => {
-			console.error('moveFile/readerStream', err)
-		   	if (typeof(callback) === 'function')
-				callback(err)
-			reject(err)
+// 文件移动
+// exports.moveFile2 = (before, next, callback) => new Promise((resolve, reject) => {
+// 	// 创建可读流
+// 	const readerStream = fs.createReadStream(before)
+// 	const writeStream = fs.createWriteStream(next)
+// 	let buf = Buffer.alloc(0)
+// 	readerStream.on('data', (chunk) => {
+// 		writeStream.write(chunk)
+// 		buf = Buffer.concat([buf,chunk], buf.length + chunk.length)
+// 	})
+// 	readerStream.on('end',function() {
+// 		// 标记文件结尾
+// 	   writeStream.end()
+// 	   if (typeof(callback) === 'function')
+// 			callback(null, buf)
+// 	   resolve(buf)
+// 	   // 删除缓存的文件
+// 	  //  fs.unlink(before, (err) => {
+// 			// if (err) {console.error('moveFile/rmfile', err.message)}
+// 	  //  })
+// 	})
+
+// 	readerStream.on('error', (err) => {
+// 		console.error('moveFile/readerStream', err)
+// 	   	if (typeof(callback) === 'function')
+// 			callback(err)
+// 		reject(err)
+// 	})
+// 	writeStream.on('error', (err) => {
+// 		console.error('moveFile/writeStream', err)
+// 	   	if (typeof(callback) === 'function')
+// 			callback(err)
+// 		reject(err)
+// 	})
+// })
+
+// 文件移动
+exports.moveFile = (before, next, callback) => new Promise((resolve, reject) => {
+	const rs = fs.createReadStream(before)
+	const ws = fs.createWriteStream(next)
+	rs.pipe(ws)  // 管道移动文件
+	rs.on('close', function() {
+		// 删除缓存的文件
+		fs.unlink(before, (err) => {
+			if (err) {console.error('moveFile/rmfile', err.message)}
 		})
-		writeStream.on('error', (err) => {
-			console.error('moveFile/writeStream', err)
-		   	if (typeof(callback) === 'function')
-				callback(err)
-			reject(err)
-		})
+		// 移动成功
+		if (typeof(callback) === 'function')
+			callback(null, next)
+		resolve(next)
 	})
-}
+
+	// 移动失败
+	rs.on('error', (err) => {
+		console.error('moveFile/readerStream', err)
+	   	if (typeof(callback) === 'function')
+			callback(err)
+		reject(err)
+	})
+	ws.on('error', (err) => {
+		console.error('moveFile/writeStream', err)
+	   	if (typeof(callback) === 'function')
+			callback(err)
+		reject(err)
+	})
+})
+
 // 生成文件名
-function randomStr(length) {
+exports.randomStr = (length) => {
 	const len = length || 10
 	const chars = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
 	let baseName = ''
@@ -98,28 +130,23 @@ function randomStr(length) {
 	}
 }
 
-// function getOrderno() {
-//     var date = new Date(),
-//         year = (date.getFullYear()+ "").substring(2,4),
-//         month = date.getMonth(),
-//         day = date.getDate(),
-//         unique = Date.now() * Math.random() + "";
-//     return (unique.substring(0,6) + year +
-//             (month > 9 ? month : "0" + month) +
-//             (day > 9 ? day : "0" + day) + 
-//             unique.substring(6,10));
-// }
 // 生成 number(订货编号)函数，18位
-const getOrderno = (function() {
-	let count = 10233
+exports.getOrderno = (function() {
+	let count = Number(exports.getSMSCode().substring(0, 5))
 	return () => {
         count = count + Math.floor(9 * Math.random()) +1
-       	if (count > 99999) { count = 10345 }
+       	if (count > 99999) { count = Number(exports.getSMSCode().substring(0, 5)) }
 	    return `${Date.now()}${count}`
 	}
 }())
 
-function formatDate() {
+// 转移搜索关键字，防止 SQL 注入
+exports.transKeyword = (keyword) => {
+	if (typeof(keyword) !== 'string') return null;
+	return keyword.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/%/g, '\\%').replace(/_/g, '\\_')
+}
+
+exports.formatDate = () => {
 	let date = new Date()
     let y = date.getFullYear();  
     let m = date.getMonth() + 1
@@ -130,16 +157,4 @@ function formatDate() {
     let minute = date.getMinutes(); 
     minute = minute < 10 ? ('0' + minute) : minute
     return y + '-' + m + '-' + d+' '+h+':'+minute
-}
-module.exports = {
-	enbcrypt,
-	getSMSCode,
-	transPhone,
-	transIDCard,
-	transEmail,
-	readFile,
-	moveFile,
-	randomStr,
-	getOrderno,
-	formatDate
 }

@@ -1,4 +1,5 @@
 const validator = require('validator');
+const tools = require('../config/tools')
 
 function isEmpty(value) {
 	return value === undefined || value === null ||
@@ -38,7 +39,9 @@ function searchProductValidator(info) {
 	let sql = "select g._id,g.goodName,g.logo,g.nowPrice,g.number,g.detailId,g.storeId,s.storeName,s.mid from tb_goods as g join tb_store as s on g.storeId=s._id where g.checkstate=1 and s.isAudit=1 and s.storeStatus=0";
 	// 关键字搜索
 	if (info.q) {
-		sql += ` and g.goodName like '%${info.q}%'`
+		let keyword = tools.transKeyword(info.q)
+		// 防止 SQL 注入
+		sql += ` and g.goodName like '%${keyword}%'`
 		ans.condition = 'q'
 	}
 	// storeId

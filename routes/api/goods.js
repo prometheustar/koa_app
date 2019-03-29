@@ -136,8 +136,8 @@ router.get('/search_product', async ctx => {
 
 /**
  * @route GET /api/goods/search_store
- * @desc 获得分类信息
- * @paramter storeIds(JsonArr)
+ * @desc 查询店铺信息
+ * @paramter storeIds(JSONArr)
  * @access 接口是公开的
  */
 router.get('/search_store', async ctx => {
@@ -246,10 +246,10 @@ router.post('/add_product', koaBody({ multipart: true }), async ctx => {
 		if (product.length > 0) return ctx.body = {success: false, code: '0001', message: '商品已存在'};
 		const getImgName = randomStr()
 		const logoName = getImgName()
-		moveFile(files.logo.path, path.join(__dirname, `../../views/image/goods/logo/${logoName}`), (err, buf) => {
+		moveFile(files.logo.path, path.join(__dirname, `../../views/image/goods/logo/${logoName}`), (err, filepath) => {
 			if (err) 
 				return console.error('/add_product/moveFile0', err)
-			sharp(buf).resize({ width: 210, fit:'inside' }).toFile(path.join(__dirname, `../../views/image/goods/logo/${logoName}_210x210q90.jpg`), (err, info) => {
+			sharp(filepath).resize({ width: 210, fit:'inside' }).toFile(path.join(__dirname, `../../views/image/goods/logo/${logoName}_210x210q90.jpg`), (err, info) => {
 				if (err) console.error('/add_product/sharp1', err)
 			})
 		})
@@ -270,13 +270,13 @@ router.post('/add_product', koaBody({ multipart: true }), async ctx => {
 		for (let i=0, len=files.goodSmaillPicture.length; i<len; i++) {
 			let imgName = getImgName()
 			// 处理图片
-			moveFile(files.goodSmaillPicture[i].path, path.join(__dirname, `../../views/image/goods/smaill/${imgName}`), (err, buf) => {
+			moveFile(files.goodSmaillPicture[i].path, path.join(__dirname, `../../views/image/goods/smaill/${imgName}`), (err, filepath) => {
 				if (err) 
 					return console.error('/add_product/moveFile1', err)
-				sharp(buf).resize({ height:430, fit:'inside' }).toFile(path.join(__dirname, `../../views/image/goods/smaill/${imgName}_430x430q90.jpg`), (err, info) => {
+				sharp(filepath).resize({ height:430, fit:'inside' }).toFile(path.join(__dirname, `../../views/image/goods/smaill/${imgName}_430x430q90.jpg`), (err, info) => {
 					if (err) console.error('/add_product/sharp1', err)
 				})
-				sharp(buf).resize({ height:60, fit:'inside' }).toFile(path.join(__dirname, `../../views/image/goods/smaill/${imgName}_60x60q90.jpg`), (err, info) => {
+				sharp(filepath).resize({ height:60, fit:'inside' }).toFile(path.join(__dirname, `../../views/image/goods/smaill/${imgName}_60x60q90.jpg`), (err, info) => {
 					if (err) console.error('/add_product/sharp2', err)
 				})
 			})

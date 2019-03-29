@@ -326,7 +326,7 @@ router.get('/user_address', async ctx => {
 
 /**
  * @route GET /api/users/get_property
- * @desc 保存聊天图片
+ * @desc 保存聊天图片，保存头像(type : avatar)
  * @access 携带 token 访问
  */
 router.post('/save_chat_image', koaBody({ multipart: true }), async ctx => {
@@ -334,13 +334,18 @@ router.post('/save_chat_image', koaBody({ multipart: true }), async ctx => {
 	if (!token.isvalid) {
 		return ctx.body = {success: false, message: '请登录后操作', code: '1002'}
 	}
-	if (!/^image\/(jpeg|png|gif|x-icon)$/.test(ctx.request.files.picture.type)) {
+	if (!ctx.request.files.picture || !/^image\/(jpeg|png|gif|x-icon)$/.test(ctx.request.files.picture.type)) {
 		return ctx.body = {success: false, message: '格式无效', code: '1002'}
 	}
 	try {
 		let imgName = tools.randomStr()(ctx.request.files.picture.name)
-		let buf = await tools.moveFile(ctx.request.files.picture.path, path.join(__dirname, '../../views/image/member/chat/' + imgName))
-		const info = await sharp(buf).resize({ width: 80, fit:'inside' }).toFile(path.join(__dirname, `../../views/image/member/chat/${imgName}_w80.jpg`))
+		if (ctx.request.body.type === 'avatar') {
+			let buf = await tools.moveFile(ctx.request.files.picture.path, path.join(__dirname, '../../views/image/member/avatar/' + imgName + '_origin.jpg'))
+			const avatar = await sharp(buf).resize({ width: 100, height: 100, fit:'inside' }).toFile(path.join(__dirname, `../../views/image/member/avatar/${imgName}`))
+		}else {
+			let buf = await tools.moveFile(ctx.request.files.picture.path, path.join(__dirname, '../../views/image/member/chat/' + imgName))
+			const info = await sharp(buf).resize({ width: 80, fit:'inside' }).toFile(path.join(__dirname, `../../views/image/member/chat/${imgName}_w80.jpg`))
+		}
 		ctx.body = {
 			success: true,
 			payload: imgName
@@ -366,7 +371,8 @@ router.get('/search_contacts', async ctx => {
 		return ctx.body = {success: false, code: '1004', message: '请登录后操作'}
 	}
 	try {
-		const contacts = await db.executeReader(`select m._id as userId,m.nickname,m.avatar from tb_member as m left join (select contacts from tb_contacts where userId=${token.payload.userId}) as c on m._id=c.contacts where m.nickname like '%${info.keyword}%' and m._id<>${token.payload.userId} and c.contacts is null;`)
+		const keyword = tools.transKeyword(info.keyword)
+		const contacts = await db.executeReader(`select m._id as userId,m.nickname,m.avatar from tb_member as m left join (select contacts from tb_contacts where userId=${token.payload.userId}) as c on m._id=c.contacts where m.nickname like '%${keyword}%' and m._id<>${token.payload.userId} and c.contacts is null;`)
 		ctx.body = {success: true, payload: contacts}
 	}catch(err) {
 		console.error('/api/users/search_contacts', err.message)
@@ -426,13 +432,13 @@ router.post('/modify_safety', async ctx => {
  * @desc 修改邮箱 {newEmail,smsCode} 或 手机号码{newPhone,smsCode}
  * @access 携带 token 访问
  */
-router.get('/user_info', async ctx => {
+const getUserInfo = async ctx => {
 	const token = tokenValidator(ctx)
 	if (!token.isvalid) {
 		return ctx.body = {success: false, code: '1004', message: '请登录后操作'}
 	}
 	try {
-		const userInfo = await db.executeReader(`select nickname,phone,reallyName,idCard,gender,email,avatar,birth,entryDate,lastLogin from tb_member where _id=${token.payload.userId} limit 1;`)
+		const userInfo = await db.executeReader(`select _id as userId,nickname,phone,reallyName,idCard,gender,email,avatar,birth,entryDate,lastLogin from tb_member where _id=${token.payload.userId} limit 1;`)
 		if (userInfo.length > 1) {
 			return ctx.body = {success: false, code: '1004', message: 'unknow error'}
 		}
@@ -445,6 +451,57 @@ router.get('/user_info', async ctx => {
 		}}}
 	}catch(err) {
 		console.error('/api/users/user_info', err.message)
+		ctx.body = {success: false, code: '9999', message: 'server busy'}
+	}
+}
+router.get('/user_info', getUserInfo)
+/**
+ * @route /api/users/user_info
+ * @desc 修改邮箱 {newEmail,smsCode} 或 手机号码{newPhone,smsCode}
+ * @access 携带 token 访问
+ */
+router.post('/modify_userinfo', async ctx => {
+	const token = tokenValidator(ctx)
+	if (!token.isvalid) {
+		return ctx.body = {success: false, code: '1004', message: '请登录后操作'}
+	}
+	const modify = ctx.request.body
+	if (Object.keys(modify).length === 0) {
+		return ctx.body = {success: false, code: '1002', message: '要修改的信息为空'}
+	}
+	let change = {}
+    if (modify.reallyName && /^[\u4e00-\u9fa5]{2,5}$/.test(modify.reallyName)) {
+      change.reallyName = `'${tools.transKeyword(modify.reallyName)}'`
+    }
+    if (modify.idCard && /^\d{18}$/.test(modify.idCard)) {
+      change.idCard = `'${modify.idCard}'`
+    }
+    if (modify.avatar && modify.avatar !== "default.jpg" && /^\w{10}_\d{8}\.(jpg|jpeg|png|icon|gif)$/.test(modify.avatar)) {
+      change.avatar = `'${modify.avatar}'`
+    }
+    if (modify.gender && /^[012]$/.test(modify.gender)) {
+      change.gender = modify.gender
+    }
+    if (modify.birth && /^(19|20)\d{2}-([1-9]|1[012])-([1-9]|[1-2][0-9]|3[01])$/.test(modify.birth)) {
+      change.birth = `'${modify.birth}'`
+    }
+    let changeKeys = Object.keys(change)
+    if (changeKeys.length === 0) {
+		return ctx.body = {success: false, code: '1002', message: '修改的信息有误'}
+	}
+	let sql = 'update tb_member set '
+	for (let i = 0; i < changeKeys.length; i++) {
+		sql += `${changeKeys[i]}=${change[changeKeys[i]]},`
+	}
+	sql = sql.replace(/,$/, ` where _id=${token.payload.userId};`)
+	try {
+		const rows = await db.executeNoQuery(sql)
+		if (rows === 0) {
+			return ctx.body = {success: false, code: '1002', message: '意外的错误'}
+		}
+		await getUserInfo(ctx)
+	}catch(err) {
+		console.error('/api/users/modify_userinfo', err.message)
 		ctx.body = {success: false, code: '9999', message: 'server busy'}
 	}
 })

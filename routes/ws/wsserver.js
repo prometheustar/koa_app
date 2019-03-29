@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken')
 const keys = require('../../config/keys')
 const tokenValidator = require('../../validation/tokenValidator')
 const db = require('../../config/mysqldb')
+const tools = require('../../config/tools')
 
 const users = require('./users')
 const chat = require('./chat')
@@ -44,17 +45,35 @@ const wsserver = {
 			}
 			return null
 		}
-		/**
-		 * hasClient(1) true/false
-		 */
+		
+		// 找到用户
+		wss.findAll = function(userId) {
+			let users = new Set()
+			for (let ws of wss.clients) {
+				if (ws._sender._socket.token.userId === userId && ws.readyState === WebSocket.OPEN) {
+					users.add(ws)
+					if (users.size > 3) { break }
+				}
+			}
+			return users.size > 0 ? users : null
+		}
+
 		// 群发消息
 		wss.sendGroup = function(message) {
 			for (let ws of wss.clients) {
-				ws.send(message)
+				if (ws.readyState === WebSocket.OPEN) {
+					ws.send(message)
+				}
 			}
 		}
 
 		wss.on('connection', function connection(ws) {
+			try {
+				// 修改用户在线状态
+				db.executeNoQuery(`update tb_member set isOnline=1 where _id=${ws._sender._socket.token.userId};`)
+			}catch(err) {
+				console.error('ws online', err.message)
+			}
 			// 查询未读消息记录返回
 		    ws.on('message', function incoming(message) {
 		    	// console.log(ws._sender._socket.token)
@@ -124,8 +143,16 @@ const wsserver = {
 						return
 		    	}
 		    })
-		    
+		    ws.on('close', function(e) {
+		    	// 更新用户最后登录时间，在线状态
+		    	try {
+					db.executeNoQuery(`update tb_member set isOnline=0,lastLogin=now() where _id=${ws._sender._socket.token.userId};`)
+		    	}catch(err) {
+		    		console.error('ws close:', err.message)
+		    	}
+		    })
 		})
+
 		wsserver.wss = wss
 		console.log('ws_running....')
 		return wss

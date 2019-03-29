@@ -2,6 +2,11 @@ const WebSocket = require('ws')
 const db = require('../../config/mysqldb')
 const validator = require('../../validation/validator')
 
+const sendMessage = (ws, message) => {
+	if (ws.readyState === WebSocket.OPEN) {
+		ws.send(JSON.stringify(message))
+	}
+}
 // 获取购物车信息
 exports.getShopCarInfo = async ws => {
 	try {
@@ -29,14 +34,12 @@ exports.getShopCarInfo = async ws => {
 				}
 			}
 		}
-		if (ws.readyState === WebSocket.OPEN) {
-			ws.send(JSON.stringify({
-				type: 'get_shop_cat',
-				origin: 'koa',
-				target: userId,
-				content: shopCarInfo
-			}))
-		}
+		sendMessage(ws, {
+			type: 'get_shop_cat',
+			origin: 'koa',
+			target: userId,
+			content: shopCarInfo
+		})
 	}catch(err) {
 		console.error('ws/users/shopingcarinfo', err.message)
 	}
@@ -115,13 +118,12 @@ exports.initChatMessage = async (ws) => {
 	try {
 		result = await db.executeReaderMany({
 			messages: `SELECT c.isRead,c.sender, c.receiver,c.content,c.creaTime,m.avatar as senderAvatar,m.nickname as senderNickname,m2.avatar as receiverAvatar,m2.nickname as receiverNickname FROM tb_chat c JOIN tb_member m ON c.sender = m._id JOIN tb_member m2 ON c.receiver = m2._id 
-				WHERE(c.receiver = ${userId}
-					AND c.isRead = 0)
+				WHERE (c.receiver = ${userId})
 					or c.sender=${userId}
 				ORDER BY
 					c.creaTime asc
 					LIMIT 100;`
-		})
+		}) // AND c.isRead = 0
 	}catch(err) {
 		return console.error('ws/users/initChatMessage', err.message)
 	}
@@ -158,11 +160,11 @@ exports.initChatMessage = async (ws) => {
 			}
 		}
 	}
-	ws.send(JSON.stringify({
+	sendMessage(ws, {
 		type: 'init_chat_messages',
 		origin: 'koa',
 		content: messages
-	}))
+	})
 }
 
 // 获取联系人列表
@@ -172,10 +174,10 @@ exports.getContacts = async (ws, wss) => {
 		for (let i = 0, len = contacts.length; i < len; i++) {
 			contacts[i].isOnline = !!wss.isOnline(contacts[i].contactId)
 		}
-		ws.send(JSON.stringify({
+		sendMessage(ws, {
 			type: 'get_contacts',
 			content: contacts
-		}))
+		})
 	}catch(err) {
 		console.error('ws/users/getContacts', err.message)
 	}
@@ -209,10 +211,10 @@ exports.getAddress = async (ws) => {
 		for (let i = 0, len = address.length; i < len; i++) {
 			address[i].isDefault = address[i].isDefault.readInt8(0)
 		}
-		ws.send(JSON.stringify({
+		sendMessage(ws, {
 			type: 'get_address',
 			content: address
-		}))
+		})
 	}catch(err) {
 		console.error('/ws/users/getAddress', err.message)
 	}
