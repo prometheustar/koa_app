@@ -21,6 +21,10 @@ function isEmail(email) {
 	return /^[A-z\d]+([-_.][A-z\d]+)*@([A-z\d]+[-.])+[A-z\d]{2,4}$/.test(email)
 }
 
+function isPassword(password) {
+	return password && /^[\w,';)(!~·`\/\\{}"<>?+-=_.]{6,25}$/.test(password)
+}
+
 function isInt(value) {
 	return /^\d+$/.test(value)
 }
@@ -33,6 +37,14 @@ function isBit(value) {
 	return /^[01]$/.test(value)
 }
 
+/**
+ * limit1=0, limit2=10
+ * 1. 按商品名关键字 q = []
+ * 2. 按详细分类 => 小分类 => 大分类
+ * 3. 店铺 id
+ * 
+ */
+/*
 function searchProductValidator(info) {
 	let ans = { isvalid: false, condition: '', message: '接口参数错误' }
 	if (typeof(info) !== 'object') return ans;
@@ -83,6 +95,7 @@ function searchProductValidator(info) {
 	ans.isvalid = true
 	return ans;
 }
+ */
 
 /**
  * token: loginToken
@@ -99,6 +112,10 @@ function isImg(file) {
 	return !isEmpty(file) && typeof(file.path) === "string" && /\.(jpg|jpeg|png|gif|svg)$/i.test(file.name) && file.size < 3*1024*1024
 }
 
+/**
+ * 添加商品验证 api/goods/add_product
+ * 
+ */
 function addProductValidator(info, files) {
 	let ans = { isvalid: false, message: '接口参数错误' }
 	if (isEmpty(info) || isEmpty(files)) {
@@ -239,7 +256,7 @@ module.exports = {
 	isEmail,
 	isEmpty,
 	isPhone,
-	searchProductValidator,
+	isPassword,
 	addProductValidator,
 	submitOrderValidator
 }

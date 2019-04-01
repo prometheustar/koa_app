@@ -110,7 +110,7 @@ router.post('/login', async ctx => {
 		return ctx.body = {success: false, message: validation.message, code: '1004'}
 	}
 	// 查询数据库，账号是否存在
-	let query = `select _id,nickname,password,phone,gender,avatar,lastLogin,isBusiness from tb_member where ${validation.way}='${user.account}' limit 1;`;
+	let query = `select _id,nickname,password,phone,email,avatar,lastLogin,isBusiness from tb_member where ${validation.way}='${user.account}' limit 1;`;
 	try {
 		const result = await db.executeReader(query)
 		if (result.length < 1) {
@@ -143,7 +143,7 @@ router.post('/login', async ctx => {
 			userId: dbuser._id,
 			nickname: dbuser.nickname,
 			phone: tools.transPhone(dbuser.phone),
-			gender: dbuser.gender,
+			email: tools.transEmail(dbuser.email),
 			avatar: dbuser.avatar,
 			isSeller: dbuser.isBusiness.readInt8(0)
 		}
@@ -340,11 +340,11 @@ router.post('/save_chat_image', koaBody({ multipart: true }), async ctx => {
 	try {
 		let imgName = tools.randomStr()(ctx.request.files.picture.name)
 		if (ctx.request.body.type === 'avatar') {
-			let buf = await tools.moveFile(ctx.request.files.picture.path, path.join(__dirname, '../../views/image/member/avatar/' + imgName + '_origin.jpg'))
-			const avatar = await sharp(buf).resize({ width: 100, height: 100, fit:'inside' }).toFile(path.join(__dirname, `../../views/image/member/avatar/${imgName}`))
+			let filepath = await tools.moveFile(ctx.request.files.picture.path, path.join(__dirname, '../../views/image/member/avatar/' + imgName + '_origin.jpg'))
+			const avatar = await sharp(filepath).resize({ width: 100, height: 100, fit:'inside' }).toFile(path.join(__dirname, `../../views/image/member/avatar/${imgName}`))
 		}else {
-			let buf = await tools.moveFile(ctx.request.files.picture.path, path.join(__dirname, '../../views/image/member/chat/' + imgName))
-			const info = await sharp(buf).resize({ width: 80, fit:'inside' }).toFile(path.join(__dirname, `../../views/image/member/chat/${imgName}_w80.jpg`))
+			let filepath = await tools.moveFile(ctx.request.files.picture.path, path.join(__dirname, '../../views/image/member/chat/' + imgName))
+			const info = await sharp(filepath).resize({ width: 80, fit:'inside' }).toFile(path.join(__dirname, `../../views/image/member/chat/${imgName}_w80.jpg`))
 		}
 		ctx.body = {
 			success: true,
@@ -393,32 +393,53 @@ router.post('/modify_safety', async ctx => {
 	}
 	const body = ctx.request.body
 	try {
-		if (validator.isEmail(body.newEmail) && /^\d{5,6}$/.test(body.smsCode)) {
-			// 修改邮箱
-			// 验证短信验证码
+		// 验证短信验证码
+		if (body.smsCode && /^\d{5,6}$/.test(body.smsCode)) {
 			const smsValid = await smsCodeValidator(body.smsCode, false, token.payload.userId)
 			if (!smsValid.isvalid) {
-				return ctx.body = {success: false, message: smsValid.message}
+				return ctx.body = { success: false, message: smsValid.message }
 			}
+		}else {
+			return ctx.body = { success: false, message: '验证码为空' }
+		}
+		// 修改邮箱
+		if (validator.isEmail(body.newEmail)) {
+			// 修改邮箱
 			let emailResult = await db.executeNoQuery(`update tb_member set email='${body.newEmail}' where _id=${token.payload.userId};`)
 			if (emailResult === 0) {
 				return ctx.body = {success: false, code: '9999', message: '未知错误'}
 			}
 			ctx.body = {success: true, message: 'OK', code: '0000'}
-		}else if (validator.isPhone(body.newPhone) && /^\d{5,6}$/.test(body.smsCode)) {
-			// 修改手机号码
-			// 验证短信验证码
-			const smsValid = await smsCodeValidator(body.smsCode, false, token.payload.userId)
-			if (!smsValid.isvalid) {
-				return ctx.body = {success: false, message: smsValid.message}
-			}
+
+		}else if (validator.isPhone(body.newPhone)) {
+		// 修改手机号码
 			let phoneResult = await db.executeNoQuery(`update tb_member set phone='${body.newPhone}' where _id=${token.payload.userId};`)
 			if (phoneResult === 0) {
 				return ctx.body = {success: false, code: '9999', message: '未知错误'}
 			}
 			ctx.body = {success: true, message: 'OK', code: '0000'}
+
+		}else if(validator.isPassword(body.password) && validator.isPassword(body.newPassword)) {
+		// 修改密码
+			let dbuser = await db.executeReader(`select password from tb_member where _id=${token.payload.userId} limit 1;`)
+			if (dbuser.length < 1) {
+				return ctx.body = {success: false, code: '9999', message: '未知错误'}
+			}
+			dbuser = dbuser[0]
+			if (!bcrypt.compareSync(body.password, dbuser.password)) {
+				// 密码对比失败
+				return ctx.body = {success: false, code: '0001', message: '密码有误'}
+			}
+			// 验证成功修改密码
+			// bcrypt 同步加密密码
+			const newPassword = bcrypt.hashSync(body.newPassword, bcrypt.genSaltSync(10))
+			const psdResult = await db.executeNoQuery(`update tb_member set password='${newPassword}' where _id=${token.payload.userId};`)
+			if (psdResult < 1) {
+				return ctx.body = {success: false, code: '9999', message: '未知错误'}		
+			}
+			ctx.body = {success: true, message: 'OK', code: '0000'}
 		}else {
-			ctx.body = {success: false, code: '1004', message: '参数错误'}
+			ctx.body = {success: false, code: '1004', message: '请求参数有误'}
 		}
 	}catch(err) {
 		console.error('/api/users/modify_safety', err.message)

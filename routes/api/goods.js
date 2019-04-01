@@ -10,7 +10,8 @@ const sharp = require('sharp')
 const path = require('path')
 const db = require('../../config/mysqldb');
 const { searchProductValidator, addProductValidator } = require('../../validation/validator')
-const { readFile, moveFile, randomStr } = require('../../config/tools')
+const { readFile, moveFile, randomStr, transKeyword } = require('../../config/tools')
+
 /**
  * @route GET /api/goods/type
  * @desc 获得分类信息
@@ -83,55 +84,112 @@ router.get('/product_logo', async ctx => {
 /**
  * @route GET /api/goods/search_product
  * @desc 获得分类信息
- * @paramter q=(string) (关键字) , limit1(number) 查询过滤条数, limit2(number) 查询结果条数
+ * @paramter q=(string) (关键字) q=q1+q2 , limit1(number) 查询过滤条数, limit2(number) 查询结果条数
  * @paramter bigId | smaillId | bigId | storeId (int), order(number销量, price价格, ) sort(desc asc), 
  * @access 接口是公开的
- * 
- * 1.搜索分类中 类似  4分
- * 		小分类，
- * 		大分类，返回小分类
- * 2.搜索商品名中 类似  2分
- * 3.搜索商品描述中 类似  1分
  *
  */
-router.get('/search_product', async ctx => {
-	const info = url.parse(ctx.request.url, true).query;
-	const search = searchProductValidator(info)
-	if (!search.isvalid) {
-		return ctx.body = {success: false, code: '0001', message: '接口参数错误'}
+const combineProducts = (p1, p2, limit) => {
+	if (p1.length >= limit) return p1
+	for (let i = 0, len = p2.length; i < len; i++) {
+		if (!p1.find(prod => prod._id === p2[i]._id)) {
+			p1.push(p2[i])
+			if (p1.length >= limit) { return p1 }
+		}
 	}
-	// 根据商品名查询
+	return p1
+}
+router.get('/search_product', async ctx => {
+	const search = url.parse(ctx.request.url, true).query;
+	// const search = searchProductValidator(search)
+	if (Object.keys(search).length === 0) {
+		return ctx.body = {success: false, code: '0001', message: '搜索条件为空'}
+	}
+	const sql = "select g._id,g.bigId,g.goodName,g.logo,g.nowPrice,g.number,g.detailId,g.storeId,s.storeName,s.mid from tb_goods as g join tb_store as s on g.storeId=s._id where g.checkstate=1 and s.isAudit=1 and s.storeStatus=0";
+	let searchSQL = sql
+	// 1.有搜索关键字
+	if (typeof(search.q) === 'string' && /^[\w\W]+$/.test(search.q)) {
+		// const q = (search.q + "").split('+')  //JSON.parse()
+		let q = []
+		try {
+			q = decodeURIComponent(search.q).split('+')
+			search.q = q
+		}catch(err) {
+			console.error('/search_product-URI:', err.message)
+		}
+		for (let i = 0, len = q.length > 5 ? 5 : q.length, end = ' and '; i < len; i++) {
+			if (q[i] === '') { continue }
+			if (i === 0) searchSQL += ' and ('
+			if(i === len - 1) end = ')'
+			searchSQL += `g.goodName like '%${transKeyword(q[i])}%'${end}`
+		}
+	}
+	// 2.有店铺 id
+	if (/^[1-9]\d*$/.test(search.storeId)) {
+		searchSQL += ` and g.storeId=${search.storeId}`
+	}
+	// 3.有详细分类 id
+	if (/^[1-9]\d*$/.test(search.detailId)) {
+		searchSQL += ` and g.detailId=${search.detailId}`
+	}else if (/^[1-9]\d*$/.test(search.smaillId)) {
+	// 4. else 有小分类 id
+		searchSQL += ` and g.smaillId=${search.smaillId}`
+	}else if (/^[1-9]\d*$/.test(search.bigId)) {
+	// 5. else 有大分类 id
+		searchSQL += ` and g.bigId=${search.bigId}`
+	}
+	if (searchSQL === sql) {
+		return ctx.body = {success: false, code: '0001', message: '搜索条件为空'}
+	}
+	const by = ['nowPrice', 'creaTime'].indexOf(search.by) !== -1 ? 'g.' + search.by : 'g.number'
+	const sort = ['asc', 'desc'].indexOf(search.sort) !== -1 ? search.sort : 'desc'
+	const limit1 = /^[0-9]\d*$/.test(search.limit1) && Number(search.limit1) ? Number(search.limit1) : 0
+	const limit2 = /^[0-9]\d*$/.test(search.limit2) && Number(search.limit2) < 101 ? Number(search.limit2) : 10
+	const constraint = ` order by ${by} ${sort} limit ${limit1},${limit2};`
+	searchSQL += constraint
 	try {
-		let goods = await db.executeReader(search.sql);
-		ctx.body = {success:true, code: '0000', message: 'OK', payload: goods}
+		let products = await db.executeReader(searchSQL)
+		// 搜索商品个数足够 或 不是第一页数据，返回
+		if (products.length >= limit2 || limit1 > 0) {
+			return ctx.body = {success: true, code: '0000', message: 'OK', payload: {
+				products,
+				end: products.length < limit2
+			}}
+		}
+		// 第一页商品，凑商品个数
+		let searchSQL2 = sql
+		if(Array.isArray(search.q) && search.q.length > 1) {  // 1.缩减搜索关键字
+			let q = search.q
+			for (let i = 0, len = q.length-1 > 4 ? 4 : q.length-1, end = ' and '; i < len; i++) {
+				if (q[i] === '') { continue }
+				if (i === 0) searchSQL2 += ' and ('
+				if(i === len - 1) end = ')'
+				searchSQL2 += `g.goodName like '%${transKeyword(q[i])}%'${end}`
+			}
+			searchSQL2 += constraint
+			const products2 = await db.executeReader(searchSQL2)
+			return ctx.body = {success: true, code: '0000', message: 'OK', payload: {
+				products: combineProducts(products, products2, limit2),
+				end: true
+			}}
+		}else if (products.length > 0) {  // 2.查大分类
+			searchSQL2 += ` and bigId=${products[0].bigId}${constraint}`
+			const products2 = await db.executeReader(searchSQL2)
+			return ctx.body = {success: true, code: '0000', message: 'OK', payload: {
+				products: combineProducts(products, products2, limit2),
+				end: true
+			}}
+		}else {  // 3.所有新上架商品时间降序
+			searchSQL2 += ` order by g.creaTime desc limit ${limit1},${limit2};`
+			ctx.body = {success: true, code: '0000', message: 'OK', payload: {
+				products: await db.executeReader(searchSQL2),
+				end: true
+			}}
+		}
 	}catch(err) {
-		console.error('/api/goods/search_product',err.message)
+		console.error('/api/goods/search_product',err)
 		ctx.body = {success: false, code: '9999', message: err.message}
 	}
-	/*
-	try {
-		let seeSmaill = `select * from tb_goods, (select d._id from tb_detailType as d,(select _id from tb_smaillType where smaillName like '%${querykey}%') as s where smaillId=s._id) as did where tb_goods.detailId=did._id;`
-		let goods = await db.executeReader(seeSmaill);
-		if (goods.length >= 20) {
-			// 小分类查询有结果超过 20 个, 返回
-			return ctx.body = goods;
-		}
-
-		// 查详细分类
-		let seeDetail = `select * from tb_goods, (select _id from tb_detailType where detailName like '%${querykey}%') as did where  tb_goods.detailId=did._id;`;
-		const detailAns = await db.executeReader(seeDetail)
-		goods = goods.concat(detailAns)
-		if (goods.length >= 20) {
-			return ctx.body = goods;
-		}
-
-		// 查商品名
-		let seeGoodsName = `select * from tb_goods where goodName like '%${querykey}%';`;
-		const goodsNameAns = await db.executeReader(seeGoodsName)
-		goods = goods.concat(goodsNameAns)
-		return ctx.body = goods;
-	}
-	*/
 })
 
 /**

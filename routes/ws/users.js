@@ -51,7 +51,7 @@ exports.addShopCarProduct = async (ws, info) => {
 		return
 	}
 	try {
-		const shopCar = await db.executeReader(`select _id from tb_shopCar where mid=${ws._sender._socket.token.userId} and goodDetailId=${info.content.goodDetailId};`)
+		const shopCar = await db.executeReader(`select _id from tb_shopCar where isBuy=0 and mid=${ws._sender._socket.token.userId} and goodDetailId=${info.content.goodDetailId} limit 1;`)
 		let update = 0;
 		let insert = 0;
 		if (shopCar.length > 0) {
