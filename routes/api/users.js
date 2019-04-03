@@ -13,7 +13,7 @@ const keys = require('../../config/keys.js');
 const db = require('../../config/mysqldb.js');
 
 const validator = require('../../validation/validator');
-const validateRegister = require('../../validation/register');
+const registerValidator = require('../../validation/register');
 const loginValidator = require('../../validation/loginValidator');
 const tokenValidator = require('../../validation/tokenValidator')
 const smsCodeValidator = require('../../validation/smsCodeValidator')
@@ -56,16 +56,17 @@ router.get('/current', async ctx => {
  * @access 接口是公开的
  */
 router.post('/register', async ctx => {
-	let user = ctx.request.body;
+	let user = ctx.request.body
+	console.log(user)
 	// 验证注册信息格式
-	const valid = validateRegister(user);
+	const valid = await registerValidator(user)
 	// 判断是否验证通过
 	if (!valid.isvalid) {
 		return ctx.body = {success: false, code: '1004', message: valid.message};
 	}
 	try{
 		// 判断账户是否以存在
-		const historyUser = await db.executeReader(`select phone from tb_member where nickname='${user.nickname}' or phone='${user.phone}';`);
+		const historyUser = await db.executeReader(`select phone from tb_member where nickname='${tools.transKeyword(user.nickname)}' or phone='${user.phone}' limit 1;`);
 		if (historyUser.length > 0) {
 			// 账户已经存在
 			if (historyUser[0].phone === user.phone)
@@ -76,7 +77,7 @@ router.post('/register', async ctx => {
 		const salt = bcrypt.genSaltSync(10);
 		user.password = bcrypt.hashSync(user.password, salt);
 		// 通过，存入数据库
-		const ans = await db.executeNoQuery(`insert into tb_member(nickname, password, phone) values('${user.nickname}', '${user.password}', '${user.phone}');`)
+		const ans = await db.executeNoQuery(`insert into tb_member(nickname, password, phone) values('${tools.transKeyword(user.nickname)}', '${user.password}', '${user.phone}');`)
 		if (ans !== 1) {
 			return ctx.body = {success: false, code: '9999', message: 'server error!'};
 		}
@@ -85,7 +86,6 @@ router.post('/register', async ctx => {
 			code: '0000',
 			message: 'OK',
 			payload: {
-				rowsAffected: ans,
 				nickname: user.nickname,
 				phone: tools.transPhone(user.phone)
 			}
