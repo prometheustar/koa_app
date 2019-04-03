@@ -181,26 +181,30 @@ router.post('/login', async ctx => {
 router.post('/phonelogin', async ctx => {
 	const user = ctx.request.body;
 	if (!validator.isPhone(user.phone) || validator.isEmpty(user.sms_code)) {
-		return ctx.body = {success: false, code: '1004', message: '手机号或验证码格式有误'};
+		return ctx.body = {success: false, code: '1004', message: '手机号或验证码格式有误'}
 	}
-	const query = {
-		dbuser: `select _id,nickname,password,phone,gender,avatar,lastLogin,isBusiness from tb_member where phone='${user.phone}';`,
-		dbsms: `select smsCode from member_sms where phone='${user.phone}' and date_add(now(),interval -5 minute) < creaTime and creaTime=(select max(creaTime) from member_sms where phone='${user.phone}' order by creaTime desc);`,
-	}
+	// const query = {
+	// 	dbuser: `select _id,nickname,password,phone,gender,avatar,lastLogin,isBusiness from tb_member where phone='${user.phone}';`,
+	// 	dbsms: `select smsCode from member_sms where phone='${user.phone}' and date_add(now(),interval -5 minute) < creaTime and creaTime=(select max(creaTime) from member_sms where phone='${user.phone}' order by creaTime desc);`,
+	// }
 	try {
+		const smsValid = await smsCodeValidator(user.sms_code, user.phone)
+		if (!smsValid.isvalid) {
+			return ctx.body = {success: false, code: '1004', message: smsValid.message}
+		}
 		// 手机号读取用户和验证码
-		let {dbuser, dbsms} = await db.executeReaderMany(query)
+		let dbuser = await db.executeReader(`select _id,nickname,password,phone,email,avatar,lastLogin,isBusiness from tb_member where phone='${user.phone}' limit 1;`)
 		if (dbuser.length === 0) {
 			return ctx.body = {success: false, code: '0001', message: '手机号无记录'};
 		}
-		if (dbsms.length === 0) {
-			return ctx.body = {success: false, code: '0001', message: '验证码过期'};
-		}
-		const md5sms = md5(md5(user.sms_code + keys.secretOrKey) + user.phone);
-		if (md5sms !== dbsms[0].smsCode) {
-			return ctx.body = {success: false, code: '0001', message: '验证码错误'};
-		}
 		dbuser = dbuser[0]
+		// if (dbsms.length === 0) {
+		// 	return ctx.body = {success: false, code: '0001', message: '验证码过期'};
+		// }
+		// const md5sms = md5(md5(user.sms_code + keys.secretOrKey) + user.phone);
+		// if (md5sms !== dbsms[0].smsCode) {
+		// 	return ctx.body = {success: false, code: '0001', message: '验证码错误'};
+		// }
 		// 查收货地址和店铺信息
 		// const queryUserInfo = {
 		// 	// address: `select _id,mid,receiveName,address,phone,postcode,isDefault from tb_address where mid=${dbuser._id};`
@@ -219,7 +223,7 @@ router.post('/phonelogin', async ctx => {
 			userId: dbuser._id,
 			nickname: dbuser.nickname,
 			phone: tools.transPhone(dbuser.phone),
-			gender: dbuser.gender,
+			email: tools.transEmail(dbuser.email),
 			avatar: dbuser.avatar,
 			isSeller: dbuser.isBusiness.readInt8(0)
 		}
