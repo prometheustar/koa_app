@@ -25,7 +25,7 @@ const routes = [
 module.exports = async (ctx, next) => {
 	const { pathname } = url.parse(ctx.request.url)
 	// 请求是 api 接口或静态文件
-	if (/^\/api/.test(pathname) || /^\/image/.test(pathname) || /^\/static/.test(pathname) || /^\/chat/.test(pathname) || 'favicon.ico') {
+	if (/^\/api/.test(pathname) || /^\/image/.test(pathname) || /^\/static/.test(pathname) || /^\/chat/.test(pathname) || '/favicon.ico' === pathname) {
 		return await next()
 	}
 	// 请求不在 react 定义页面中
