@@ -6,7 +6,7 @@ const { transKeyword } = require('../../config/tools')
 module.exports.sendChatMessage = async (ws, info, wss) => {
 	if (ws._sender._socket.token.userId !== info.origin || !/^[1-9]\d*$/.test(info.origin) || !/^[1-9]\d*$/.test(info.target) || info.content === undefined || info.content === '') { return }
 	try {
-		const result = await db.executeNoQuery(`insert into tb_chat(sender,receiver,content) values(${info.origin},${info.target},'${transKeyword(info.content)}');`)
+		const result = await db.executeNoQuery(`insert into tb_chat(sender,receiver,content) values(${info.origin},${info.target},'${transKeyword(info.content).replace(/\\_/g, '_')}');`)
 		if (result < 1) return; // 消息插入失败，未知异常
 		ws.send(JSON.stringify(info))
 		const target = wss.findAll(info.target)
