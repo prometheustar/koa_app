@@ -57,7 +57,6 @@ router.get('/current', async ctx => {
  */
 router.post('/register', async ctx => {
 	let user = ctx.request.body
-	console.log(user)
 	// 验证注册信息格式
 	const valid = await registerValidator(user)
 	// 判断是否验证通过

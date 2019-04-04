@@ -16,7 +16,7 @@ const judgeOrderState = (order) => {
 }
 
 exports.getOrders = async (ws, info) => {
-	if (info.content && info.content.limit !== undefined && !/^\d+$/.test(info.content.limit)) return;
+	if (info.content && !/^\d+$/.test(info.content.limit)) return;
 	try {
 		const orders = await db.executeReader(`
 				select o._id,o.orderno,o.sumPrice,o.isPay,o.creaTime,

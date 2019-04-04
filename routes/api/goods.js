@@ -316,7 +316,7 @@ router.post('/add_product', koaBody({ multipart: true }), async ctx => {
 		let insertGoods = `insert into tb_goods(bigId,smaillId,detailId,storeId,goodName,goodFrom,logo,nowPrice,goodno) values(
 								(select bigId from tb_smaillType where _id=(select smaillId from tb_detailType where _id=${info.detailId})),
 								(select smaillId from tb_detailType where _id=${info.detailId}),
-								${info.detailId},${info.storeId},'${info.goodName}','${info.goodFrom}','${logoName}',${info.nowPrice},'${goodno}');`
+								${info.detailId},${info.storeId},'${info.goodName.trim().replace(/'/g, "\\'").replace(/;/g, '\\;')}','${info.goodFrom}','${logoName}',${info.nowPrice},'${goodno}');`
 		const goodsAns = await db.executeNoQuery(insertGoods)
 		if (goodsAns !== 1) return ctx.body = {success: false, code: '0001', message: '未知错误1'};
 		let goodId = await db.executeReader(`select _id from tb_goods where goodno='${goodno}' limit 1;`)
