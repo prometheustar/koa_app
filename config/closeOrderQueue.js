@@ -1,7 +1,9 @@
 const db = require('./mysqldb')
 const waitCloseQueue = new Set()
 
-
+/**
+ * Set 集合无序！！
+ */
 
 const getFirstCloseOrder = () => {
 	if (waitCloseQueue.size === 0) return null;

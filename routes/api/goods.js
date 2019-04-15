@@ -444,9 +444,18 @@ router.post('/add_product', koaBody({ multipart: true }), async ctx => {
 
 //koaBody({ multipart: true }),
 router.get('/test', async ctx => {
-	const info = url.parse(ctx.request.url, true).query;
-	console.log(info)
-	ctx.body = info
+	// console.log(ctx.req.connection.remoteAddress)
+	// console.log(ctx.req.headers['x-forwarded-for'])
+	// console.log(ctx.req.socket.remoteAddress)
+	// console.log(ctx.req.connection.socket.remoteAddress)
+	ctx.body = {
+		forwarded: ctx.req.headers['x-forwarded-for'],
+		connectionRemoteAddress: ctx.req.connection.remoteAddress,
+		socketRemoteAddress: ctx.req.socket.remoteAddress,
+		connectionSocketRemoteAddress: ctx.req.connection.socket ? ctx.req.connection.socket.remoteAddress : null,
+		port: ctx.req.socket.remotePort,
+		port2: ctx.req.connection.remotePort
+	}
 })
 
 module.exports = router.routes();

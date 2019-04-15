@@ -11,6 +11,7 @@ const tools = require('../../config/tools')
 const keys = require('../../config/keys')
 const alipay = require('../../config/alipay')
 const tokenValidator = require('../../validation/tokenValidator')
+const smsCodeValidator = require('../../validation/smsCodeValidator')
 const validator = require('../../validation/validator')
 const socket = require('../ws/wsserver')
 // const { addCloseOrder } = require('../../config/closeOrderQueue')
@@ -46,7 +47,6 @@ router.post('/submit_order', async ctx => {
 		// 查询商品详情
 		products: `select gd._id as gdId,gd.amount,gd.price,g.storeId from tb_goodDetail gd join tb_goods g on gd.goodId=g._id where gd.state=0 and gd.amount>0 and g.checkstate=1 and g.state=0 and gd._id in (`,
 		address: `select _id from tb_address where _id=${param.addressId} and mid=${token.payload.userId} limit 1;`, // 查询地址是否正确
-
 	}
 	for (let i = 0, len = param.goodDetailIds.length, temp; i < len; i++) {
 		// 对 defailId 进行降序排序
@@ -126,6 +126,107 @@ router.post('/submit_order', async ctx => {
 	}
 })
 
+/**
+ * 余额付款前请求获得签名密匙 md5(keys.paySign + userId)
+ * @route GET /api/order/get_pay_sign
+ * @access 携带 token 访问
+ */
+router.get('/get_pay_sign', ctx => {
+	// token 验证
+	const token = tokenValidator(ctx)
+	if (!token.isvalid) {
+		return ctx.body = {success: false, message: '没有访问权限', code: '1002'}
+	}
+	ctx.body = {success: true, payload: { sign: md5(keys.paySign + token.payload.userId) }}
+})
+
+/**
+ * 余额付款接口
+ * @route GET /api/order/property_pay_order
+ * params  ordernos，sign，smsCode
+ * @access 携带 token 访问
+ */
+router.post('/property_pay_order', async ctx => {
+	const token = tokenValidator(ctx)
+	if (!token.isvalid) {
+		return ctx.body = {success: false, message: '没有访问权限', code: '1002'}
+	}
+	const req = ctx.request.body
+	if (!/\d{5,6}/.test(req.smsCode) || !Array.isArray(req.ordernos) || req.ordernos.length == 0 || typeof(req.sign) !== 'string' || req.sign.length !== 32) {
+		return ctx.body = {success: false, message: '接口参数错误', code: '1002'}
+	}
+	try {
+		/**
+		 * 1. 验证 sign
+		 * 2. 验证短信
+		 */
+		var validateSign = md5(req.ordernos.reduce((prev, now) => prev + now, '') + md5(keys.paySign + token.payload.userId))
+		if (validateSign !== req.sign) {
+			return ctx.body = {success: false, message: '接口参数签名有误', code: '1002'}
+		}
+		const smsValid = await smsCodeValidator(req.smsCode, null, token.payload.userId)
+		if (!smsValid.isvalid) {
+			return ctx.body = {success: false, message: '验证码有误', code: '1002'}
+		}
+		/**
+		 * 查询余额，查询订单
+		 */
+		let query = {
+			user: `select property from tb_member where _id=${token.payload.userId} limit 1;`,
+			orders: 'select orderno,sumPrice from tb_order where '
+		}
+		// 这个 SQL 修改订单 isPay 状态
+		let modifyOrderPayState = 'update tb_order set isPay=1,payway=2 where isPay=0 and ('
+
+		for (let i = 0, len = req.ordernos.length, end = ' or ', end2 = ' or '; i < len; i++) {
+			if (i === len-1) {
+				end = ` limit ${len};`
+				end2 = ');'
+			}
+			query.orders += `orderno='${req.ordernos[i]}'${end}`
+			modifyOrderPayState += `orderno='${req.ordernos[i]}'${end2}`
+		}
+		query = await db.executeReaderMany(query)
+		if (query.user.length === 0 || query.orders.length !== req.ordernos.length) {
+			return ctx.body = {success: false, message: '未知错误', code: '1002'}
+		}
+		// 订单总额
+		let total = new Decimal(query.orders[0].sumPrice)
+		for (let i = 1, len = query.orders.length; i < len; i++) {
+			total = total.plus(query.orders[i].sumPrice)
+		}
+		if (query.user[0].property < total.toNumber()) {
+			return ctx.body = {success: false, message: '余额不足', code: '1002'}
+		}
+
+		/**
+		 * 付款操作，修改订单状态，事务
+		 */
+		let executePay = {
+			property: `update tb_member set property=property-${total.toString()} where _id=${token.payload.userId} and property>=${total.toString()};`,
+			modifyOrderPayState: modifyOrderPayState
+		}
+		await db.executeReader('begin;')
+		try {
+			executePay = await db.executeNoQueryMany(executePay)
+			if (executePay.property !== 1 || executePay.modifyOrderPayState !== req.ordernos.length) {
+				// 回滚
+				await db.executeReader('rollback;')
+				return ctx.body = {success: false, message: '服务器忙，请稍后重试！', code: '1002'}
+			}
+			// 付款成功，提交修改
+			await db.executeReader('commit;')
+			ctx.body = {success: true, message: 'OK'}
+		}catch(err) {
+			await db.executeReader('rollback;')
+			throw err
+		}
+	}catch(err) {
+		console.error('/api/users/property_pay_order', err)
+		ctx.body = {success: false, code: '9999', message: 'server busy'}
+	}
+})
+
 
 /**
  * 支付宝支付成功回调接口
@@ -161,8 +262,6 @@ router.post('/alipay_notify', async ctx => {
 		if (payAns.member.length < 1 || payAns.update.affectedRows < 1) {
 			return console.error('/alipay_notify, database miss', payAns)
 		}
-		console.log('OooO order is pay!!!')
-		console.log(payAns.member)
 		if (socket.wss !== null) {
 			socket.wss.sendMsg({
 				type: 'payOrderSuccess',
