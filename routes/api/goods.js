@@ -168,7 +168,9 @@ router.get('/search_product', async ctx => {
 			}
 			searchSQL2 += constraint
 			const products2 = await db.executeReader(searchSQL2)
+			console.log(products2)
 			return ctx.body = {success: true, code: '0000', message: 'OK', payload: {
+				length: products.length,
 				products: combineProducts(products, products2, limit2),
 				end: true
 			}}
@@ -176,12 +178,14 @@ router.get('/search_product', async ctx => {
 			searchSQL2 += ` and bigId=${products[0].bigId}${constraint}`
 			const products2 = await db.executeReader(searchSQL2)
 			return ctx.body = {success: true, code: '0000', message: 'OK', payload: {
+				length: products.length,
 				products: combineProducts(products, products2, limit2),
 				end: true
 			}}
 		}else {  // 3.所有新上架商品时间降序
 			searchSQL2 += ` order by g.creaTime desc limit ${limit1},${limit2};`
 			ctx.body = {success: true, code: '0000', message: 'OK', payload: {
+				length: 0,
 				products: await db.executeReader(searchSQL2),
 				end: true
 			}}
@@ -250,7 +254,14 @@ router.get('/product_detail', async ctx => {
 		const result = await db.executeReaderMany({
 			smaillPicture: `select link,pindex from tb_goodsmaillPicture where goodId=${goodId} order by pindex asc;`,
 			infoPicture: `select link,pindex from tb_goodPicture where goodId=${goodId} order by pindex asc;`,
-			comments: `select m.nickname,c.content,c.creaTime from tb_comments as c join tb_member as m on c.mid=m._id where c.goodDetailId in (select _id from tb_goodDetail where goodId=${goodId}) order by c.creaTime asc;`,
+			comments: `select c._id as commentId,m.nickname,c.pictures,c.content,c.type,c.creaTime,sn.specName,sv.specValue from tb_comments as c 
+				join tb_member as m on c.mid=m._id 
+				join tb_goodDetail gd on c.goodDetailId=gd._id
+				join tb_goodSpecConfig gsc on (gsc.goodId=gd.goodId and gd.indexx=gsc.detailIndex)
+				join tb_SpecName sn on (gd.goodId=sn.goodId and gsc.specNameIndex=sn.indexx)
+				join tb_SpecValue sv on (gd.goodId=sv.goodId and gsc.specValueIndex=sv.indexx)
+				where c.goodDetailId in (select _id from tb_goodDetail where goodId=${goodId}) 
+				order by c.creaTime asc;`,
 			specName: `select specName,indexx from tb_SpecName where goodId=${goodId} order by indexx asc;`,
 			goodDetail: `select _id,amount,price,indexx,state,isDisable from tb_goodDetail where goodId=${goodId} order by indexx asc;`
 		})
@@ -272,11 +283,29 @@ router.get('/product_detail', async ctx => {
 			if (Buffer.isBuffer(goodDetail[len].isDisable))
 				goodDetail[len].isDisable = goodDetail[len].isDisable.readInt8(0)
 		}
-		ctx.body = {success:true, code: '0000', message: 'OK', payload: {...productDetail, ...result}}
+		// 对评论内容进行重组
+		let comments = []
+		for (let i = 0, len = result.comments.length; i < len; i++) {
+			var find = comments.find((com) => com.commentId === result.comments[i].commentId)
+			if (!find) {
+				comments.push({
+					commentId: result.comments[i].commentId,
+					nickname: result.comments[i].nickname,
+					pictures: result.comments[i].pictures ? result.comments[i].pictures.split('@') : [],
+					type: result.comments[i].type,
+					creaTime: result.comments[i].creaTime,
+					content: result.comments[i].content,
+					spec: [{ name: result.comments[i].specName, value: result.comments[i].specValue }]
+				})
+				continue
+			}
+			find.spec.push({ name: result.comments[i].specName, value: result.comments[i].specValue })
+		}
+		ctx.body = {success:true, code: '0000', message: 'OK', payload: {...productDetail, ...result, comments}}
 		
 	}catch(err) {
 		console.error('/api/goods/product_detail', err.message)
-		ctx.body = {success: false, code: '9999', message: err.message}
+		ctx.body = {success: false, code: '9999', message: 'server busy'}
 	}
 })
 
@@ -444,10 +473,6 @@ router.post('/add_product', koaBody({ multipart: true }), async ctx => {
 
 //koaBody({ multipart: true }),
 router.get('/test', async ctx => {
-	// console.log(ctx.req.connection.remoteAddress)
-	// console.log(ctx.req.headers['x-forwarded-for'])
-	// console.log(ctx.req.socket.remoteAddress)
-	// console.log(ctx.req.connection.socket.remoteAddress)
 	ctx.body = {
 		forwarded: ctx.req.headers['x-forwarded-for'],
 		connectionRemoteAddress: ctx.req.connection.remoteAddress,

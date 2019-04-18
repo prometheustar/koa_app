@@ -1,5 +1,8 @@
 const bcrypt = require('bcryptjs');
 const fs = require("fs");
+const jwt = require('jsonwebtoken')
+const md5 = require('md5')
+const keys = require('./keys')
 
 // bcryrpt同步加密密码
 exports.enbcrypt = (password) => {
@@ -157,4 +160,21 @@ exports.formatDate = () => {
     let minute = date.getMinutes(); 
     minute = minute < 10 ? ('0' + minute) : minute
     return y + '-' + m + '-' + d+' '+h+':'+minute
+}
+
+// 获取 ip 地址
+exports.getIPAddress = (ctx) => {
+	return ctx.req.headers['x-forwarded-for'] ||
+		ctx.req.connection.remoteAddress ||
+		ctx.req.socket.remoteAddress ||
+		(ctx.req.connection.socket && ctx.req.connection.socket.remoteAddress) || null
+}
+/**
+ * 获取 tokne
+ * @param  {[object]} payload [token 负载]
+ * @param  {[object]} ctx     [koa 上下文，用于获取 ip 地址]
+ */
+exports.getToken = (payload, ctx) => {
+	const ip = md5(exports.getIPAddress(ctx) + keys.tokenKey).substring(11, 24)
+	return jwt.sign({...payload, ip}, keys.tokenKey, {expiresIn: 60*20})  // 重新签发 token
 }

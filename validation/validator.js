@@ -22,7 +22,7 @@ function isEmail(email) {
 }
 
 function isPassword(password) {
-	return password && /^[\w,';)(!~·`\/\\{}"<>?+-=_.]{6,25}$/.test(password)
+	return password && /^[\w,';)(!~·`\/\\{}"<>?+-=_.]{6,32}$/.test(password)
 }
 
 function isInt(value) {

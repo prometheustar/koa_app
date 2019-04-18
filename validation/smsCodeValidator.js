@@ -18,6 +18,7 @@ module.exports = async (smsCode, phone, userId) => {
 			ans.message = '验证码过期'
 			return ans
 		}
+		// md5(sms + phone)[传递]  => md5(md5(sms + phone) + secret)[验证]
 		const md5sms = md5(md5(smsCode + keys.secretOrKey) + (phone || result[0].phone))
 		if (md5sms !== result[0].smsCode) {
 			ans.message = '验证码错误'

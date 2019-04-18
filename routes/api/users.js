@@ -25,7 +25,7 @@ const smsCodeValidator = require('../../validation/smsCodeValidator')
  * @access 接口是公开的
  */
 router.get('/current', async ctx => {
-	const token = tokenValidator(ctx)
+	const token = tokenValidator(ctx, tools.getIPAddress(ctx))
 	// token 不合法
 	if (!token.isvalid) {
 		return ctx.body = { success: false, message: token.message }
@@ -33,20 +33,21 @@ router.get('/current', async ctx => {
 	const payload = token.payload
 	delete payload.iat
 	delete payload.exp
+	delete payload.ip
 	try {
 		const response = {
 			success: true,
 			message: 'OK',
 			payload: {
 				user: payload,
-				token: jwt.sign(payload, keys.tokenKey, {expiresIn: 60*20})  // 重新签发 token
+				token: tools.getToken(payload, ctx) // jwt.sign(payload, keys.tokenKey, {expiresIn: 60*20})  // 重新签发 token
 			}
 		}
 		ctx.body = response
 	}catch(err) {
 		console.error('/api/users/current', err.message)
 		ctx.status = 400;
-		ctx.body = {success: false, code: '9999', message: err.message};
+		ctx.body = {success: false, code: '9999', message: err.message}
 	}
 })
 
@@ -73,10 +74,11 @@ router.post('/register', async ctx => {
 			return ctx.body = {success: false, code: '0002', message: '昵称已存在'};
 		}
 		// bcrypt 同步加密密码
-		const salt = bcrypt.genSaltSync(10);
-		user.password = bcrypt.hashSync(user.password, salt);
+		const salt = bcrypt.genSaltSync(10)
+		const password = bcrypt.hashSync(user.password, salt)
+		const md5password = bcrypt.hashSync(md5(user.password), bcrypt.genSaltSync(10))
 		// 通过，存入数据库
-		const ans = await db.executeNoQuery(`insert into tb_member(nickname, password, phone) values('${tools.transKeyword(user.nickname)}', '${user.password}', '${user.phone}');`)
+		const ans = await db.executeNoQuery(`insert into tb_member(nickname, password, phone, md5password) values('${tools.transKeyword(user.nickname)}', '${password}', '${user.phone}'), '${md5password}';`)
 		if (ans !== 1) {
 			return ctx.body = {success: false, code: '9999', message: 'server error!'};
 		}
@@ -109,7 +111,7 @@ router.post('/login', async ctx => {
 		return ctx.body = {success: false, message: validation.message, code: '1004'}
 	}
 	// 查询数据库，账号是否存在
-	let query = `select _id,nickname,password,phone,email,avatar,lastLogin,isBusiness from tb_member where ${validation.way}='${user.account}' limit 1;`;
+	let query = `select _id,nickname,password,phone,email,avatar,lastLogin,isBusiness,md5password from tb_member where ${validation.way}='${user.account}' limit 1;`;
 	try {
 		const result = await db.executeReader(query)
 		if (result.length < 1) {
@@ -118,7 +120,12 @@ router.post('/login', async ctx => {
 		}
 		const dbuser = result[0];
 		// bcrypt 同步验证密码
-		if (!bcrypt.compareSync(user.password, dbuser.password)) {
+		if (user.hash === 'md5') {
+			if (!bcrypt.compareSync(user.password, dbuser.md5password)) {
+				return ctx.body = {success: false, code: '0001', message: '密码错误'}
+			}
+			
+		}else if (!bcrypt.compareSync(user.password, dbuser.password)) {
 			// 验证失败
 			return ctx.body = {success: false, code: '0001', message: '密码错误'}
 		}
@@ -153,7 +160,7 @@ router.post('/login', async ctx => {
 			payload: {  //token: 'Bearer '+ token
 				user: payload,
 				// address: userInfo.address,
-				token: jwt.sign(payload, keys.tokenKey, {expiresIn: 60*20})
+				token: tools.getToken(payload, ctx) //jwt.sign(payload, keys.tokenKey, {expiresIn: 60*20})
 			}
 		}
 		ctx.body = response
@@ -232,7 +239,7 @@ router.post('/phonelogin', async ctx => {
 			message: 'OK',
 			payload: {  //token: 'Bearer '+ token
 				user: payload,
-				token: jwt.sign(payload, keys.tokenKey, {expiresIn: 60*20})
+				token: tools.getToken(payload, ctx) //jwt.sign(payload, keys.tokenKey, {expiresIn: 60*20})
 			}
 		}
 		ctx.body = response
@@ -424,19 +431,20 @@ router.post('/modify_safety', async ctx => {
 
 		}else if(validator.isPassword(body.password) && validator.isPassword(body.newPassword)) {
 		// 修改密码
-			let dbuser = await db.executeReader(`select password from tb_member where _id=${token.payload.userId} limit 1;`)
+			let dbuser = await db.executeReader(`select md5password from tb_member where _id=${token.payload.userId} limit 1;`)
 			if (dbuser.length < 1) {
 				return ctx.body = {success: false, code: '9999', message: '未知错误'}
 			}
 			dbuser = dbuser[0]
-			if (!bcrypt.compareSync(body.password, dbuser.password)) {
+			if (!bcrypt.compareSync(body.password, dbuser.md5password)) {
 				// 密码对比失败
 				return ctx.body = {success: false, code: '0001', message: '密码有误'}
 			}
 			// 验证成功修改密码
 			// bcrypt 同步加密密码
 			const newPassword = bcrypt.hashSync(body.newPassword, bcrypt.genSaltSync(10))
-			const psdResult = await db.executeNoQuery(`update tb_member set password='${newPassword}' where _id=${token.payload.userId};`)
+			const newMD5Password = bcrypt.hashSync(md5(body.newPassword), bcrypt.genSaltSync(10))
+			const psdResult = await db.executeNoQuery(`update tb_member set password='${newPassword}',md5password='${newMD5Password}' where _id=${token.payload.userId};`)
 			if (psdResult < 1) {
 				return ctx.body = {success: false, code: '9999', message: '未知错误'}		
 			}

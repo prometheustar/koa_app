@@ -14,7 +14,8 @@ const wsserver = {
 		const wss = new WebSocket.Server({
 			server: server, // 将注册函数绑定到 koa 返回的 http对象上，与 koa 监听同一个端口
 			verifyClient: function(info) {
-				const token = tokenValidator(info.req.url) // ws://url?token=xxx
+				// 验证 token ，需要验证 ip
+				const token = tokenValidator(info.req.url, tools.getIPAddress(info)) // ws://url?token=xxx
 				if (!token.isvalid) {
 					return false // token 不合法，拒绝连接
 				}
@@ -91,6 +92,7 @@ const wsserver = {
 		    	// 根据消息类型处理回复
 		    	switch(info.type) {
 					case 'transToken':  // 客户端请求一个新的token
+						console.log(ws._sender._socket.token)
 						return ws.send(JSON.stringify({
 							type: 'transToken', origin: 'koa', target: ws._sender._socket.token.userId,
 							content: jwt.sign(ws._sender._socket.token, keys.tokenKey, {expiresIn: 60*20})

@@ -173,7 +173,7 @@ router.post('/property_pay_order', async ctx => {
 		 */
 		let query = {
 			user: `select property from tb_member where _id=${token.payload.userId} limit 1;`,
-			orders: 'select orderno,sumPrice from tb_order where '
+			orders: 'select orderno,sumPrice,isPay from tb_order where '
 		}
 		// 这个 SQL 修改订单 isPay 状态
 		let modifyOrderPayState = 'update tb_order set isPay=1,payway=2 where isPay=0 and ('
@@ -193,6 +193,10 @@ router.post('/property_pay_order', async ctx => {
 		// 订单总额
 		let total = new Decimal(query.orders[0].sumPrice)
 		for (let i = 1, len = query.orders.length; i < len; i++) {
+			console.log('isPay:', query.orders[i].isPay.readInt8(0))
+			if (query.orders[i].isPay.readInt8(0) === 1) {
+				return ctx.body = {success: false, message: `订单"${query.orders[i].orderno}"已经支付过了`, code: '1002'}
+			}
 			total = total.plus(query.orders[i].sumPrice)
 		}
 		if (query.user[0].property < total.toNumber()) {
@@ -202,25 +206,19 @@ router.post('/property_pay_order', async ctx => {
 		/**
 		 * 付款操作，修改订单状态，事务
 		 */
-		let executePay = {
-			property: `update tb_member set property=property-${total.toString()} where _id=${token.payload.userId} and property>=${total.toString()};`,
-			modifyOrderPayState: modifyOrderPayState
+		const executePay = [
+			`update tb_member set property=property-${total.toString()} where _id=${token.payload.userId} and property>=${total.toString()};`,
+			modifyOrderPayState
+		]
+		const executeAns = await db.executeTransaction(executePay, (ans, index) => {
+			return index === 0 ? ans === 1 : ans === req.ordernos.length
+		})
+			console.log(executeAns)
+		if (!executeAns.success) {
+			console.log(executeAns)
+			return ctx.body = {success: false, message: '服务器忙，请稍后重试！', code: '1002'}
 		}
-		await db.executeReader('begin;')
-		try {
-			executePay = await db.executeNoQueryMany(executePay)
-			if (executePay.property !== 1 || executePay.modifyOrderPayState !== req.ordernos.length) {
-				// 回滚
-				await db.executeReader('rollback;')
-				return ctx.body = {success: false, message: '服务器忙，请稍后重试！', code: '1002'}
-			}
-			// 付款成功，提交修改
-			await db.executeReader('commit;')
-			ctx.body = {success: true, message: 'OK'}
-		}catch(err) {
-			await db.executeReader('rollback;')
-			throw err
-		}
+		ctx.body = {success: true, message: 'OK'}
 	}catch(err) {
 		console.error('/api/users/property_pay_order', err)
 		ctx.body = {success: false, code: '9999', message: 'server busy'}
@@ -272,7 +270,7 @@ router.post('/alipay_notify', async ctx => {
 		}
 		ctx.body = 'success' // 回复 alipay
 	}catch(err) {
-		console.error('/api/order/alipay_notify', err.message)
+		console.error('/api/order/alipay_notify', orders, err.message)
 	}
 })
 

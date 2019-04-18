@@ -14,7 +14,7 @@ module.exports = function validateRegisterInput(data) {
 	if (typeof(data.account) !== 'string' || data.account.length < 2) {
 		ans.message = "账户格式有误"; return ans;
 	}
-	if (typeof(data.password) !== 'string' || !isLength(data.password, {min:6,max:18})) {
+	if (typeof(data.password) !== 'string' || !isLength(data.password, {min:6,max:32})) {
 		ans.message = "密码有误"; return ans;
 	}
 	if (validator.isPhone(data.account)) {
