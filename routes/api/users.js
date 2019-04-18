@@ -511,7 +511,7 @@ router.post('/modify_userinfo', async ctx => {
     if (modify.avatar && modify.avatar !== "default.jpg" && /^\w{10}_\d{8}\.(jpg|jpeg|png|icon|gif)$/.test(modify.avatar)) {
       change.avatar = `'${modify.avatar}'`
     }
-    if (modify.gender && /^[012]$/.test(modify.gender)) {
+    if (modify.gender !== undefined && /^[012]$/.test(modify.gender)) {
       change.gender = modify.gender
     }
     if (modify.birth && /^(19|20)\d{2}-([1-9]|1[012])-([1-9]|[1-2][0-9]|3[01])$/.test(modify.birth)) {
