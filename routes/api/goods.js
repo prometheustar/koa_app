@@ -105,14 +105,15 @@ router.get('/search_product', async ctx => {
 	if (Object.keys(search).length === 0) {
 		return ctx.body = {success: false, code: '0001', message: '搜索条件为空'}
 	}
-	const sql = "select g._id,g.bigId,g.goodName,g.logo,g.nowPrice,g.number,g.detailId,g.storeId,s.storeName,s.mid from tb_goods as g join tb_store as s on g.storeId=s._id where g.checkstate=1 and s.isAudit=1 and s.storeStatus=0";
+	const sql = "select g._id,g.bigId,g.goodName,g.logo,g.nowPrice,g.number,g.detailId,g.storeId,s.storeName,s.mid,m.avatar,m.nickname from tb_goods as g join tb_store as s on g.storeId=s._id join tb_member as m on s.mid=m._id where g.checkstate=1 and s.isAudit=1 and s.storeStatus=0";
 	let searchSQL = sql
 	// 1.有搜索关键字
 	if (typeof(search.q) === 'string' && /^[\w\W]+$/.test(search.q)) {
 		// const q = (search.q + "").split('+')  //JSON.parse()
 		let q = []
 		try {
-			q = decodeURIComponent(search.q).split('+')
+			// koa 自己对 url 进行了 decode 转换
+			q = search.q.split('+')//decodeURIComponent(search.q)
 			search.q = q
 		}catch(err) {
 			console.error('/search_product-URI:', err.message)
@@ -121,7 +122,8 @@ router.get('/search_product', async ctx => {
 			if (q[i] === '') { continue }
 			if (i === 0) searchSQL += ' and ('
 			if(i === len - 1) end = ')'
-			searchSQL += `g.goodName like '%${transKeyword(q[i])}%'${end}`
+			// SQL注入 % 忽略，搜索全部商品
+			searchSQL += `g.goodName like '%${transKeyword(q[i]).replace('\\%', '%')}%'${end}`
 		}
 	}
 	// 2.有店铺 id
@@ -246,7 +248,7 @@ router.get('/product_detail', async ctx => {
 	if (!/^\d+$/.test(goodId)) return ctx.body = {success: false, code: '0001', message: '接口参数错误'}
 	try {
 		const productDetail = { goodId: goodId }
-		const goodInfo = await db.executeReader(`select g._id,g.storeId,g.goodName,g.goodFrom,g.nowPrice,g.number,g.state,s.logo,s.storeName,s.nickname from tb_goods as g join tb_store as s on g.storeId=s._id where g._id=${goodId} and g.checkstate=1 and s.storeStatus=0;`)
+		const goodInfo = await db.executeReader(`select g._id,g.storeId,g.goodName,g.goodFrom,g.nowPrice,g.number,g.state,s.logo,s.storeName,s.nickname,m._id as userId,m.avatar from tb_goods as g join tb_store as s on g.storeId=s._id join tb_member as m on m._id=s.mid where g._id=${goodId} and g.checkstate=1 and s.storeStatus=0;`)
 		if (goodInfo.length < 1) return ctx.body = {success: false, code: '0001', message: '商品不存在'}
 		if (goodInfo[0].state.readInt8(0) === 1) return ctx.body = {success: false, code: '0001', message: '商品已下架'}
 		delete goodInfo[0].state
