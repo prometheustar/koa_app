@@ -234,6 +234,7 @@ router.post('/property_pay_order', async ctx => {
 // https://docs.open.alipay.com/270/105902/
 router.post('/alipay_notify', async ctx => {
 	const result = ctx.request.body
+	console.log('支付宝支付结果回调：', result)
 	// 验证
 	if (result.app_id !== keys.alipayAppId || result.trade_status !== 'TRADE_SUCCESS') { return }
 	let orders;

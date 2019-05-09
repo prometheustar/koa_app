@@ -7,7 +7,7 @@ const { initSocket } = require('./routes/ws/wsserver')
 /**
  * 跨域
  * CORS是一个W3C标准，全称是"跨域资源共享"（Cross-origin resource sharing）。
- *下面以koa2-cors为例，
+ * 下面以koa2-cors为例，
  */
 const cors = require('koa2-cors');
 

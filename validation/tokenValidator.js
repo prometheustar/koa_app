@@ -4,6 +4,11 @@ const md5 = require('md5')
 const keys = require('../config/keys')
 const { getIPAddress } = require('../config/tools')
 
+// ip 多地登录白名单
+const whiteList = [
+	md5('119.3.238.228' + keys.tokenKey).substring(11,24)
+]
+
 module.exports = (ctx, ip) => {
 	let token;
 	if (typeof(ctx) === 'string') {
@@ -18,6 +23,11 @@ module.exports = (ctx, ip) => {
 	try {
 		// 存在，解析
         const decoded = jwt.verify(token, keys.tokenKey)
+        // 在 ip 白名单中
+        if (whiteList.indexOf(decoded.ip) != -1) {
+			return { isvalid: true, payload: decoded }
+        }
+
         // 如果需要验证 ip 地址
         if (ip && md5(ip + keys.tokenKey).substring(11,24) !== decoded.ip) {
 			return { isvalid: false, message: '您的IP地址发生改变，请重新登录' }

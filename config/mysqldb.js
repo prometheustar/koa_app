@@ -6,7 +6,7 @@
 const mysql = require('mysql');
 const keys = require('./keys.js');
 
-// 创建连接池，最多10个并行连接。
+// 创建连接池，最多15个并行连接。
 const pool = mysql.createPool({
 	connectionLimit : 15,
 	host: keys.mysqlhost,
@@ -146,7 +146,7 @@ function compose(handlers, state, callback) {
 /**
  * 事务执行处理
  * 传入sql 数组，判断是否回滚函数
- * 返回是否执行成功，{success: true} 或 抛出错误
+ * 返回是否执行成功，{success: true/false} 或 抛出错误
  */
 function executeTransaction(sqls, judge) {
 	return new Promise((resolve, reject) => {
@@ -214,17 +214,6 @@ module.exports = {
 	executeTransaction
 }
 
-/*
-  OkPacket {
-  fieldCount: 0,
-  affectedRows: 2,
-  insertId: 9,
-  serverStatus: 2,
-  warningCount: 0,
-  message: '&Records: 2  Duplicates: 0  Warnings: 0',
-  protocol41: true,
-  changedRows: 0 }
- */
 
  /**
   * 因 mysql 版本太高，密码验证方式更新，客户端版本太低，手动修改密码验证方式

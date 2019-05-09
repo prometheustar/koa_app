@@ -1,22 +1,20 @@
 const db = require('./mysqldb')
-const waitCloseQueue = new Set()
+const waitCloseQueue = []
 
 /**
- * Set 集合无序！！
+ * 定时任务，关闭待付款订单列表
  */
 
 const getFirstCloseOrder = () => {
-	if (waitCloseQueue.size === 0) return null;
-	for (let order of waitCloseQueue) {  // 获取队列中第一个订单
-		return order
-	}
+	if (waitCloseQueue.length === 0) return null;
+	return waitCloseQueue[0]  // 获取队列中第一个订单
 }
 
 const addCloseOrder = (orderno) => {
 	let order = Object.create(null)
 	order.orderno = orderno
 	order.time = Date.now()
-	waitCloseQueue.add(order)
+	waitCloseQueue.push(order)
 }
 
 // 将订单关闭并还原商品库存
@@ -32,7 +30,7 @@ const closeOrder = async (orderno, order) => {
 		}
 		await db.executeNoQueryMany(updateSQL)
 		if (order) {
-			waitCloseQueue.delete(order)
+			waitCloseQueue.splice(waitCloseQueue.indexOf(order), 1)
 		}
 	}catch(err) {
 		console.error('closeOrder', err.message)
@@ -53,7 +51,7 @@ const initCloseOrders = async function() {
 		order = Object.create(null)
 		order.orderno = orders[i].orderno
 		order.time = new Date(orders[i].creaTime).getTime()
-		waitCloseQueue.add(order)
+		waitCloseQueue.push(order)
 	}
 
 	// 设置定时器轮询查看关闭任务
