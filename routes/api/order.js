@@ -193,7 +193,7 @@ router.post('/property_pay_order', async ctx => {
 		// 订单总额
 		let total = new Decimal(query.orders[0].sumPrice)
 		for (let i = 1, len = query.orders.length; i < len; i++) {
-			console.log('isPay:', query.orders[i].isPay.readInt8(0))
+			// console.log('isPay:', query.orders[i].isPay.readInt8(0))
 			if (query.orders[i].isPay.readInt8(0) === 1) {
 				return ctx.body = {success: false, message: `订单"${query.orders[i].orderno}"已经支付过了`, code: '1002'}
 			}
@@ -213,9 +213,9 @@ router.post('/property_pay_order', async ctx => {
 		const executeAns = await db.executeTransaction(executePay, (ans, index) => {
 			return index === 0 ? ans === 1 : ans === req.ordernos.length
 		})
-			console.log(executeAns)
+			// console.log(executeAns)
 		if (!executeAns.success) {
-			console.log(executeAns)
+			// console.log(executeAns)
 			return ctx.body = {success: false, message: '服务器忙，请稍后重试！', code: '1002'}
 		}
 		ctx.body = {success: true, message: 'OK'}

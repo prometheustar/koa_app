@@ -27,6 +27,8 @@ const wsserver = {
 			}
 		})
 
+		wsserver.wss = wss
+		
 		wss.sendMsg = function(message) {
 			for (let ws of wss.clients) {
 				if (ws._sender._socket.token.userId === message.target) {
@@ -37,6 +39,7 @@ const wsserver = {
 				}
 			}
 		}
+
 		// 判断用户是否在线
 		wss.isOnline = function(userId) {
 			for (let ws of wss.clients) {
@@ -155,7 +158,6 @@ const wsserver = {
 		    })
 		})
 
-		wsserver.wss = wss
 		console.log('ws_running....')
 		return wss
 	}

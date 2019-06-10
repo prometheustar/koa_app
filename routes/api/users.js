@@ -77,8 +77,9 @@ router.post('/register', async ctx => {
 		const salt = bcrypt.genSaltSync(10)
 		const password = bcrypt.hashSync(user.password, salt)
 		const md5password = bcrypt.hashSync(md5(user.password), bcrypt.genSaltSync(10))
+		var sql = `insert into tb_member(nickname, password, phone, md5password) values('${tools.transKeyword(user.nickname)}', '${password}', '${user.phone}', '${md5password}');`
 		// 通过，存入数据库
-		const ans = await db.executeNoQuery(`insert into tb_member(nickname, password, phone, md5password) values('${tools.transKeyword(user.nickname)}', '${password}', '${user.phone}'), '${md5password}';`)
+		const ans = await db.executeNoQuery(sql)
 		if (ans !== 1) {
 			return ctx.body = {success: false, code: '9999', message: 'server error!'};
 		}
