@@ -3,20 +3,15 @@ const Router = require("koa-router");
 const bodyParser = require('koa-bodyparser');
 const static = require('koa-static');
 const path = require("path");
-const { initSocket } = require('./routes/ws/wsserver')
-/**
- * 跨域
- * CORS是一个W3C标准，全称是"跨域资源共享"（Cross-origin resource sharing）。
- * 下面以koa2-cors为例，
- */
 const cors = require('koa2-cors');
+const { initSocket } = require('./routes/ws/wsserver')
 
 // 实例化 koa
 const app = new Koa();
 const router = new Router();
 
 /**
- * 允许跨域 
+ * 允许跨域
  */
 app.use(cors({
     origin: function (ctx) {

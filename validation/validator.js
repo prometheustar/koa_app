@@ -37,77 +37,6 @@ function isBit(value) {
 	return /^[01]$/.test(value)
 }
 
-/**
- * limit1=0, limit2=10
- * 1. 按商品名关键字 q = []
- * 2. 按详细分类 => 小分类 => 大分类
- * 3. 店铺 id
- * 
- */
-/*
-function searchProductValidator(info) {
-	let ans = { isvalid: false, condition: '', message: '接口参数错误' }
-	if (typeof(info) !== 'object') return ans;
-	let sql = "select g._id,g.goodName,g.logo,g.nowPrice,g.number,g.detailId,g.storeId,s.storeName,s.mid from tb_goods as g join tb_store as s on g.storeId=s._id where g.checkstate=1 and s.isAudit=1 and s.storeStatus=0";
-	// 关键字搜索
-	if (info.q) {
-		let keyword = tools.transKeyword(info.q)
-		// 防止 SQL 注入
-		sql += ` and g.goodName like '%${keyword}%'`
-		ans.condition = 'q'
-	}
-	// storeId
-	if (/^\d+$/.test(info.storeId + '')) {
-		// sql += ans.condition === 'q' ? ' and' : ' where'
-		sql += ` and g.storeId = ${info.storeId}`
-		ans.condition = 'storeId'
-	}
-	// 商品分类
-	if (/^\d+$/.test(info.detailId + '')) {
-		// sql += (ans.condition === 'q' || ans.condition === 'storeId') ? ' and' : ' where'
-		sql += ` and g.detailId = ${info.detailId}`
-		ans.condition = 'classify'
-
-	}else if (/^\d+$/.test(info.smaillId + '')) {
-		// sql += (ans.condition === 'q' || ans.condition === 'storeId') ? ' and' : ' where'
-		sql += ` and g.smaillId = ${info.smaillId}`
-		ans.condition = 'classify'
-
-	}else if (/^\d+$/.test(info.bigId + '')) {
-		// sql += (ans.condition === 'q' || ans.condition === 'storeId') ? ' and' : ' where'
-		sql += ` and g.bigId = ${info.bigId}`
-		ans.condition = 'classify'
-	}
-	// 参数不对
-	if (ans.condition === '') return ans;
-	
-	// order by
-	if (info.order === 'price' || info.order === 'number') {
-		// 按价格或销量排序
-		sql += info.order === 'price' ? ' order by g.price' : info.order === 'number' ? ' order by g.number' : '';
-		// 默认降序
-		sql += info.sort === 'asc' ? ' asc' : ' desc'
-	}
-	// 查询条数限制 limit
-	sql = sql + ` limit ` + (/^\d+$/.test(info.limit1) ? info.limit1 + ',' : '') +
-			(/^\d+$/.test(info.limit2) ? info.limit2 : 10); // 默认返回 10 条
-	ans.sql = sql
-	ans.isvalid = true
-	return ans;
-}
- */
-
-/**
- * token: loginToken
- * tb_goods: detailId, storeId, goodName, goodFrom, nowPrice, logo(文件)
- * tb_goodsmaillPicture: goodId,link(fileName)(文件) 小图片组，数组
- * tb_goodPicture: goodId,link(fileName) 商品介绍图片组
- *
- * tb_SpecName: specName, goodId, indexx
- * tb_SpecValue: goodId, specNameIndex, specValue, indexx
- *
- * tb_goodSpecConfig 关系映射表，自动生成
- */
 function isImg(file) {
 	return !isEmpty(file) && typeof(file.path) === "string" && /\.(jpg|jpeg|png|gif|svg)$/i.test(file.name) && file.size < 3*1024*1024
 }
@@ -260,3 +189,76 @@ module.exports = {
 	addProductValidator,
 	submitOrderValidator
 }
+
+
+/**
+ * limit1=0, limit2=10
+ * 1. 按商品名关键字 q = []
+ * 2. 按详细分类 => 小分类 => 大分类
+ * 3. 店铺 id
+ * 
+ */
+/*
+function searchProductValidator(info) {
+	let ans = { isvalid: false, condition: '', message: '接口参数错误' }
+	if (typeof(info) !== 'object') return ans;
+	let sql = "select g._id,g.goodName,g.logo,g.nowPrice,g.number,g.detailId,g.storeId,s.storeName,s.mid from tb_goods as g join tb_store as s on g.storeId=s._id where g.checkstate=1 and s.isAudit=1 and s.storeStatus=0";
+	// 关键字搜索
+	if (info.q) {
+		let keyword = tools.transKeyword(info.q)
+		// 防止 SQL 注入
+		sql += ` and g.goodName like '%${keyword}%'`
+		ans.condition = 'q'
+	}
+	// storeId
+	if (/^\d+$/.test(info.storeId + '')) {
+		// sql += ans.condition === 'q' ? ' and' : ' where'
+		sql += ` and g.storeId = ${info.storeId}`
+		ans.condition = 'storeId'
+	}
+	// 商品分类
+	if (/^\d+$/.test(info.detailId + '')) {
+		// sql += (ans.condition === 'q' || ans.condition === 'storeId') ? ' and' : ' where'
+		sql += ` and g.detailId = ${info.detailId}`
+		ans.condition = 'classify'
+
+	}else if (/^\d+$/.test(info.smaillId + '')) {
+		// sql += (ans.condition === 'q' || ans.condition === 'storeId') ? ' and' : ' where'
+		sql += ` and g.smaillId = ${info.smaillId}`
+		ans.condition = 'classify'
+
+	}else if (/^\d+$/.test(info.bigId + '')) {
+		// sql += (ans.condition === 'q' || ans.condition === 'storeId') ? ' and' : ' where'
+		sql += ` and g.bigId = ${info.bigId}`
+		ans.condition = 'classify'
+	}
+	// 参数不对
+	if (ans.condition === '') return ans;
+	
+	// order by
+	if (info.order === 'price' || info.order === 'number') {
+		// 按价格或销量排序
+		sql += info.order === 'price' ? ' order by g.price' : info.order === 'number' ? ' order by g.number' : '';
+		// 默认降序
+		sql += info.sort === 'asc' ? ' asc' : ' desc'
+	}
+	// 查询条数限制 limit
+	sql = sql + ` limit ` + (/^\d+$/.test(info.limit1) ? info.limit1 + ',' : '') +
+			(/^\d+$/.test(info.limit2) ? info.limit2 : 10); // 默认返回 10 条
+	ans.sql = sql
+	ans.isvalid = true
+	return ans;
+}
+ */
+
+/**
+ * token: loginToken
+ * tb_goods: detailId, storeId, goodName, goodFrom, nowPrice, logo(文件)
+ * tb_goodsmaillPicture: goodId,link(fileName)(文件) 小图片组，数组
+ * tb_goodPicture: goodId,link(fileName) 商品介绍图片组
+ *
+ * tb_SpecName: specName, goodId, indexx
+ * tb_SpecValue: goodId, specNameIndex, specValue, indexx
+ *
+ * tb_goodSpecConfig 关系映射表，自动生成
+ */

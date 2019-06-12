@@ -37,6 +37,6 @@ module.exports = async (ctx, next) => {
 		const appString = ReactSSR.renderToString(createApp(null, decodeURIComponent(ctx.request.url), null))
 		ctx.body = template.replace('<!--app-->', appString)
 	}catch(err) {
-		console.error('react-ssr--->', err.message)
+		console.error('react-ssr --->', err.message)
 	}
 }
