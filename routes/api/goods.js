@@ -273,7 +273,7 @@ router.get('/product_detail', async ctx => {
 			productDetail.specName = specName
 			const specInfo = await db.executeReaderMany({
 				specValue: `select specValue,indexx,specNameIndex from tb_SpecValue where goodId=${goodId} order by indexx asc;`,
-				specConfig: `select detailIndex,specNameIndex,specValueIndex from tb_goodSpecConfig  where goodId=${goodId};`
+				specConfig: `select detailIndex,specNameIndex,specValueIndex from tb_goodSpecConfig where goodId=${goodId};`
 			})
 			result.specValue = specInfo.specValue
 			result.specConfig = specInfo.specConfig
