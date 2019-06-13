@@ -156,6 +156,7 @@ function executeTransaction(sqls, judge) {
 			// 开始事务
 			connection.beginTransaction(function(err) {
 			    if (err) {
+					connection.release()
 				    return reject(err)
 			    }
 				var querys = []
@@ -194,7 +195,7 @@ function executeTransaction(sqls, judge) {
 						connection.release()
 						resolve({ success: true })
 				    })
-			     }catch(err) {
+			     } catch(err) {
 			     	// 报错，回滚
 					connection.rollback()
 					connection.release()

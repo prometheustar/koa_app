@@ -127,6 +127,7 @@ exports.signOrder = async (ws, info) => {
 			}
 			return ans === 1
 		})
+		console.log(signAns)
 		if (signAns.success) {
 			return exports.getOrders(ws, info)
 		}

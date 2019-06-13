@@ -11,7 +11,7 @@ const app = new Koa();
 const router = new Router();
 
 /**
- * 允许跨域，改由 nginx 跨域
+ * 允许跨域，改由 nginx 支持跨域
  */
 // app.use(cors({
 //     origin: function (ctx) {
