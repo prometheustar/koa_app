@@ -9,6 +9,7 @@ let template = fs.readFileSync(path.join(__dirname, '../../views/customer/index.
 module.exports = async (ctx, next) => {
 	try {
 		const appString = ReactSSR.renderToString(createApp(null, decodeURIComponent(ctx.request.url), null))
+		ctx.response.type = 'html'
 		ctx.body = template.replace('<!--app-->', appString)
 	}catch(err) {
 		console.error('react-ssr --->', err.message)
