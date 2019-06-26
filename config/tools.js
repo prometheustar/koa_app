@@ -19,20 +19,20 @@ exports.getSMSCode = () => {
 		return smsCode;
 	}
 }
-// 转换手机号
+// 转换手机号(手机号脱敏)
 exports.transPhone = (p) => {
 	if (typeof(p) !== 'string')	
 		return p
 	return (p[0] + p[1] + p[2] + '****' + p[7] + p[8] + p[9] + p[10]);
 }
 
-// 转换身份证
+// 转换身份证(身份证脱敏)
 exports.transIDCard = (id) => { 
 	if (typeof(id) !== 'string')	
 		return id
 	return id.substring(0,3) + '****' + id.substring(14)
 }
-// 转换邮箱
+// 转换邮箱(邮箱脱敏)
 exports.transEmail = (email) => {
 	if (typeof(email) !== 'string')	
 		return email
@@ -52,41 +52,6 @@ exports.readFile = (url) => {
 	});
 }
 
-// 文件移动
-// exports.moveFile2 = (before, next, callback) => new Promise((resolve, reject) => {
-// 	// 创建可读流
-// 	const readerStream = fs.createReadStream(before)
-// 	const writeStream = fs.createWriteStream(next)
-// 	let buf = Buffer.alloc(0)
-// 	readerStream.on('data', (chunk) => {
-// 		writeStream.write(chunk)
-// 		buf = Buffer.concat([buf,chunk], buf.length + chunk.length)
-// 	})
-// 	readerStream.on('end',function() {
-// 		// 标记文件结尾
-// 	   writeStream.end()
-// 	   if (typeof(callback) === 'function')
-// 			callback(null, buf)
-// 	   resolve(buf)
-// 	   // 删除缓存的文件
-// 	  //  fs.unlink(before, (err) => {
-// 			// if (err) {console.error('moveFile/rmfile', err.message)}
-// 	  //  })
-// 	})
-
-// 	readerStream.on('error', (err) => {
-// 		console.error('moveFile/readerStream', err)
-// 	   	if (typeof(callback) === 'function')
-// 			callback(err)
-// 		reject(err)
-// 	})
-// 	writeStream.on('error', (err) => {
-// 		console.error('moveFile/writeStream', err)
-// 	   	if (typeof(callback) === 'function')
-// 			callback(err)
-// 		reject(err)
-// 	})
-// })
 
 // 文件移动
 exports.moveFile = (before, next, callback) => new Promise((resolve, reject) => {
@@ -169,6 +134,7 @@ exports.getIPAddress = (ctx) => {
 		ctx.req.socket.remoteAddress ||
 		(ctx.req.connection.socket && ctx.req.connection.socket.remoteAddress) || null
 }
+
 /**
  * 获取 tokne
  * @param  {[object]} payload [token 负载]

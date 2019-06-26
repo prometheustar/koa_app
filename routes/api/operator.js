@@ -56,7 +56,7 @@ router.post('/sms', async ctx => {
 router.post('/testsms', async ctx => {
 	const phone = ctx.request.body.phone;
 	if (!validator.isPhone(phone)){
-		ctx.status = 400;
+		// ctx.status = 400;
 		return ctx.body = {success: false, code: '1004',message: '手机号码无效'}
 	}
 	try {
@@ -114,40 +114,42 @@ router.get('/testsms', async ctx => {
 })
 
 
-// 文件上传测试
-function readFile(url) {
-	return new Promise((resolve, reject) => {
-		fs.readFile(url, 'utf-8', (err, data) => {
-			if (err) {
-				reject(err)
-			}
-			resolve(data)
-		})
-	})
-}
 
-// 文件上传到 linux 工具
-router.get('/files', async ctx => {
-	ctx.body = await readFile(path.join(__dirname, '../../views/files.html'))
-})
-router.post('/files', koaBody({ multipart: true }), async ctx => {
-	if (ctx.request.body.password !== '123456') {
-		return ctx.body = { success: false, message: '密码错误' }
-	}
-	if (!ctx.request.files.file || typeof(ctx.request.files.file.path) !== 'string') {
-		return ctx.body = { success: false, message: '文件未缓存' }
-	}
-	// 上传到服务器的文件会缓存到 用户目录/AppData/Local/Temp 目录
-	const filePath = ctx.request.files.file.path
-	const fileName = ctx.request.files.file.name
-	try {
-		const ans = await moveFile(filePath, path.join(__dirname, '../../files') + "/" + fileName);
-		ctx.body = { success: true, code: '0000', message: ans }
-	}catch (err) {
-		console.error('/api/operator/files', err.message)
-		ctx.body = { success: false, code:'9999', message: err.message }
-	}
+
+// 文件上传测试
+// function readFile(url) {
+// 	return new Promise((resolve, reject) => {
+// 		fs.readFile(url, 'utf-8', (err, data) => {
+// 			if (err) {
+// 				reject(err)
+// 			}
+// 			resolve(data)
+// 		})
+// 	})
+// }
+
+// // 文件上传到 linux 工具
+// router.get('/files', async ctx => {
+// 	ctx.body = await readFile(path.join(__dirname, '../../views/files.html'))
+// })
+// router.post('/files', koaBody({ multipart: true }), async ctx => {
+// 	if (ctx.request.body.password !== '123456') {
+// 		return ctx.body = { success: false, message: '密码错误' }
+// 	}
+// 	if (!ctx.request.files.file || typeof(ctx.request.files.file.path) !== 'string') {
+// 		return ctx.body = { success: false, message: '文件未缓存' }
+// 	}
+// 	// 上传到服务器的文件会缓存到 用户目录/AppData/Local/Temp 目录
+// 	const filePath = ctx.request.files.file.path
+// 	const fileName = ctx.request.files.file.name
+// 	try {
+// 		const ans = await moveFile(filePath, path.join(__dirname, '../../files') + "/" + fileName);
+// 		ctx.body = { success: true, code: '0000', message: ans }
+// 	}catch (err) {
+// 		console.error('/api/operator/files', err.message)
+// 		ctx.body = { success: false, code:'9999', message: err.message }
+// 	}
 	
-})
+// })
 
 module.exports = router.routes();

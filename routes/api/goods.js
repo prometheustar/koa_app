@@ -8,9 +8,10 @@ const koaBody = require('koa-body')
 const fs = require('fs')
 const sharp = require('sharp')
 const path = require('path')
-const db = require('../../config/mysqldb');
+const db = require('../../config/mysqldb')
+const tokenValidator = require('../../validation/tokenValidator')
 const { searchProductValidator, addProductValidator } = require('../../validation/validator')
-const { readFile, moveFile, randomStr, transKeyword } = require('../../config/tools')
+const { readFile, moveFile, randomStr, transKeyword, getIPAddress } = require('../../config/tools')
 
 /**
  * @route GET /api/goods/type
@@ -323,9 +324,16 @@ router.get('/product_detail', async ctx => {
  */
 
 router.post('/add_product', koaBody({ multipart: true }), async ctx => {
+	const token = tokenValidator(ctx, getIPAddress(ctx))
+	// token 不合法
+	if (!token.isvalid) {
+		return ctx.body = { success: false, message: token.message }
+	} else if (!token.payload.isSeller) {
+		return ctx.body = { success: false, message: '该用户不是商家' }
+	}
 	const info = ctx.request.body
 	const files = ctx.request.files
-	const ans = addProductValidator(info, files)
+	const ans = addProductValidator(info, files) 
 	if (!ans.isvalid) {
 		return ctx.body = {success: false, code: '0001', message: ans.message}
 	}
@@ -444,6 +452,7 @@ router.post('/add_product', koaBody({ multipart: true }), async ctx => {
 				}
 				countArr[countArr.length-1](true)
 			}
+			// return ctx.body = {success: true} //xxxxwait
 			// 执行 SQL 语句插入数据
 			const specInsertAns = await db.executeNoQueryMany({
 				specName: insertSpecName,
@@ -457,6 +466,7 @@ router.post('/add_product', koaBody({ multipart: true }), async ctx => {
 			// 无属性分类
 			insertGoodDetail += `(${goodId},0,${info.goodDetailInfo[0].amount},${info.goodDetailInfo[0].price},1);`
 		}
+		// return ctx.body = {success: true} //xxxxwait
 		// 执行 SQL 语句插入数据
 		const insertAns = await db.executeNoQueryMany({
 				smaillPicture: insertSmaillPicture,

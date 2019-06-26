@@ -13,21 +13,23 @@ const router = new Router();
 /**
  * 允许跨域，改由 nginx 支持跨域
  */
-// app.use(cors({
-//     origin: function (ctx) {
-//         return "*"; // 允许来自所有域名请求
-//         // return 'http://localhost:3001'; // 这样就能只允许 http://localhost:3001 这个域名的请求了
-//     },
-//     exposeHeaders: ['WWW-Authenticate', 'Server-Authorization'],
-//     maxAge: 5,
-//     credentials: true,
-//     allowMethods: ['GET', 'POST'],
-//     allowHeaders: ['Content-Type', 'Authorization', 'Accept']
-// }))
+app.use(cors({
+    origin: function (ctx) {
+        return "*"; // 允许来自所有域名请求
+        // return 'http://localhost:3001'; // 这样就能只允许 http://localhost:3001 这个域名的请求了
+    },
+    exposeHeaders: ['WWW-Authenticate', 'Server-Authorization'],
+    maxAge: 5,
+    credentials: true,
+    allowMethods: ['GET', 'POST', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization', 'Accept']
+}))
 
-// 服务端渲染 React 页面
-const serverRender = require('./routes/react-ssr/react-ssr')
-app.use(serverRender)
+// 服务端判断渲染卖家 React 页面
+const sellerSSR = require('./routes/react-ssr/sellerSSR')
+const customerSSR = require('./routes/react-ssr/customerSSR')
+// const reactSSR = require('./routes/react-ssr/react-ssr.js')
+app.use(sellerSSR)
 
 /**
  * 静态文件目录
@@ -53,6 +55,7 @@ router.use('/api/cs', cs);
 
 // 配置路由
 app.use(router.routes()).use(router.allowedMethods());
+app.use(customerSSR)
 
 app.on('error', (err, ctx) => {
     if (err.code === 'ECANCELED' || err.code === 'ECONNRESET') return console.log('报错了');

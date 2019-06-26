@@ -14,12 +14,12 @@ module.exports = function validateRegisterInput(data) {
 	if (typeof(data.account) !== 'string' || data.account.length < 2) {
 		ans.message = "账户格式有误"; return ans;
 	}
-	if (typeof(data.password) !== 'string' || !isLength(data.password, {min:6,max:32})) {
+	if (typeof(data.password) !== 'string' || !isLength(data.password, {min:6, max:500})) {
 		ans.message = "密码有误"; return ans;
 	}
 	if (validator.isPhone(data.account)) {
 		return {isvalid: true, message: 'OK', way: 'phone'}
-	} else if (isLength(data.account, {min:2, max:10})){
+	} else if (isLength(data.account, {min:2, max:20})){
 		return {isvalid: true, message: 'OK', way: 'nickname'}
 	} else {
 		ans.message = "账户格式有误"; return ans;

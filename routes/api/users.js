@@ -8,9 +8,11 @@ const sharp = require('sharp')
 const path = require('path')
 const url = require('url')
 
-const tools = require('../../config/tools.js');
-const keys = require('../../config/keys.js');
-const db = require('../../config/mysqldb.js');
+const tools = require('../../config/tools.js')
+const db = require('../../config/mysqldb.js')
+const encoders = require('../../utils/encoders')
+const Memory = require('../../utils/memory')
+const Response = require('../../utils/response')
 
 const validator = require('../../validation/validator');
 const registerValidator = require('../../validation/register');
@@ -100,6 +102,42 @@ router.post('/register', async ctx => {
 });
 
 /**
+ * 获取 rsa 公钥
+ * 1. 验证账户查询数据库
+ * 2. 生成 RSA 密匙对返回公钥，存储私钥，设置过期时间
+ * @param {账户} account
+ */
+router.get('/rsa_public', async ctx => {
+	const paramter = url.parse(ctx.request.url, true).query
+	let way = '';
+	if (validator.isPhone(paramter.account)) {
+		way = 'phone'
+	} else if (validator.isLength(paramter.account, {min:2, max:10})) {
+		way = 'nickname'
+	} else {
+		return ctx.body = ctx.body = { success: false, message: '账户格式有误', code: '1004' }
+	}
+
+	let query = `select _id from tb_member where ${way}='${tools.transKeyword(paramter.account)}' limit 1;`;
+	try {
+		const dbuser = await db.executeReader(query)
+		if (dbuser.length === 0) {
+			return ctx.body = {success: false, code: '0001', message: '用户不存在'}
+		}
+		const keyPair = new encoders.RSAKeyPair()
+		// 返回公钥，存储私钥 3 分钟
+		Memory.set('rsa:' + dbuser[0]._id, keyPair.private, 3 * 60)
+		ctx.body = { success: true, code: '0000', payload: keyPair.public }
+	}catch(err) {
+		console.error('/api/users/rsa_public', err.message)
+		ctx.body = { success: false, code: '9999', message: err.message }
+	}
+})
+
+/**
+ * 1. 客户端获取 rsa 公钥，服务端存储私钥 (每次登陆都重新获取)
+ * 2. 客户端用公钥加密密码，
+ * 3. 服务端验证公钥加密密码
  * @route GET api/users/login
  * @desc 登录接口地址 返回 token
  * @access 接口是公开的
@@ -112,38 +150,34 @@ router.post('/login', async ctx => {
 		return ctx.body = {success: false, message: validation.message, code: '1004'}
 	}
 	// 查询数据库，账号是否存在
-	let query = `select _id,nickname,password,phone,email,avatar,lastLogin,isBusiness,md5password from tb_member where ${validation.way}='${user.account}' limit 1;`;
+	let query = `select _id,nickname,phone,email,avatar,lastLogin,isBusiness,md5password from tb_member where ${validation.way}='${user.account}' limit 1;`;
 	try {
 		const result = await db.executeReader(query)
 		if (result.length < 1) {
 			// 没有该用户
 			return ctx.body = {success: false, code: '0001', message: '用户不存在'}
 		}
-		const dbuser = result[0];
-		// bcrypt 同步验证密码
-		if (user.hash === 'md5') {
-			if (!bcrypt.compareSync(user.password, dbuser.md5password)) {
-				return ctx.body = {success: false, code: '0001', message: '密码错误'}
-			}
-			
-		}else if (!bcrypt.compareSync(user.password, dbuser.password)) {
-			// 验证失败
-			return ctx.body = {success: false, code: '0001', message: '密码错误'}
-		}
-		// 查收货地址和店铺信息
-		// const queryUserInfo = {
-		// 	address: `select _id,mid,receiveName,address,phone,postcode,isDefault from tb_address where mid=${dbuser._id};`
-		// }
-		// // 该用户是店家
-		// if (dbuser.isBusiness === 1) {
+		const dbuser = result[0]
 
-		// 	queryUserInfo.store = `select _id,storeName,click,storeStatus,isAudit from tb_store where mid=${dbuser._id};`
-		// }
-		// const userInfo = await db.executeReaderMany(queryUserInfo)
-		// // 转换地址中的 buffer
-		// for (let len = userInfo.address.length -1; len >= 0; len--) {
-		// 	userInfo.address[len].isDefault = userInfo.address[len].isDefault.readInt8(0)
-		// }
+		// RSA解密，bcrypt 同步验证密码
+		const rsaPrivate = Memory.get(`rsa:${dbuser._id}`)
+		if (!rsaPrivate) {
+			return ctx.body = Response.fail({
+				message: '网络繁忙，请刷新后重试'
+			})
+		}
+		const password = encoders.decryptRSAPublic(user.password, rsaPrivate)
+		if (!password) {
+			return ctx.body = Response.fail({
+				message: '当前网络环境不安全，请稍后重试'
+			})
+		}
+
+		if (!bcrypt.compareSync(password, dbuser.md5password)) {
+			return ctx.body = Response.fail({
+				message: '密码错误'
+			})
+		}
 
 		// 查询成功返回 token
 		const payload = {
@@ -154,6 +188,18 @@ router.post('/login', async ctx => {
 			avatar: dbuser.avatar,
 			isSeller: dbuser.isBusiness.readInt8(0)
 		}
+		if (payload.isSeller === 1) {
+			// 查询店铺信息
+			const store = (await db.executeReader(`select _id,storeName,storeStatus,logo,isAudit from tb_store where mid=${dbuser._id} limit 1`))[0]
+			if (!store || store.isAudit !== 1 || store.storeStatus.readInt8(0) === 1) {
+				payload.isSeller = 0
+			} else {
+				payload.storeId = store._id
+				payload.storeName = store.storeName
+				payload.storeLogo = store.logo
+			}
+		}
+
 		const response = {
 			success: true,
 			code: '0000',
@@ -165,14 +211,89 @@ router.post('/login', async ctx => {
 			}
 		}
 		ctx.body = response
-		// 该用户是店家
-		// if (Array.isArray(userInfo.store) && userInfo.store.length > 0) {
-		// 	payload.storeId = userInfo.store[0]._id
-		// 	userInfo.store[0].storeStatus = userInfo.store[0].storeStatus.readInt8(0)
-		// 	response.payload.store = userInfo.store[0]
-		// }
-		// 签发 token
-		// response.payload.token = jwt.sign(payload, keys.tokenKey, {expiresIn: 60*20});
+	}catch(err) {
+		console.error('/api/users/login', err.message)
+		ctx.status = 400;
+		ctx.body = {success: false, code: '9999', message: err.message};
+	}
+})
+
+/**
+ * @route GET api/users/phonelogin
+ * @desc 卖家登录接口 返回 token
+ * @access 接口是公开的
+ */
+router.post('/seller_login', async ctx => {
+	const user = ctx.request.body
+	const validation = loginValidator(user)
+	if (!validation.isvalid) {
+		// 参数错误
+		return ctx.body = {success: false, message: validation.message, code: '1004'}
+	}
+	// 查询数据库，账号是否存在
+	let query = `select _id,nickname,avatar,lastLogin,isBusiness,md5password from tb_member where ${validation.way}='${user.account}' limit 1;`;
+	try {
+		const dbuser = (await db.executeReader(query))[0]
+		if (!dbuser || dbuser.isBusiness.readInt8(0) === 0) {
+			// 没有该用户
+			return ctx.body = {success: false, code: '0001', message: '用户不存在或未注册商家'}
+		}
+		// console.log(dbuser)
+		dbuser.isBusiness = dbuser.isBusiness.readInt8(0)
+		
+		// RSA解密，bcrypt 同步验证密码
+		const rsaPrivate = Memory.get(`rsa:${dbuser._id}`)
+		if (!rsaPrivate) {
+			return ctx.body = Response.fail({
+				message: '网络繁忙，请刷新后重试'
+			})
+		}
+		const password = encoders.decryptRSAPublic(user.password, rsaPrivate)
+		if (!password) {
+			return ctx.body = Response.fail({
+				message: '当前网络环境不安全，请稍后重试'
+			})
+		}
+
+		if (!bcrypt.compareSync(password, dbuser.md5password)) {
+			return ctx.body = Response.fail({
+				message: '密码错误'
+			})
+		}
+
+		// 查询店铺信息
+		const store = (await db.executeReader(`select _id,storeName,storeStatus,logo,isAudit from tb_store where mid=${dbuser._id} limit 1`))[0]
+		if (!store) {
+			return ctx.body = Response.fail({
+				message: '用户或未注册商家'
+			})
+		}else if (store.isAudit !== 1) {
+			return ctx.body = Response.fail({
+				message: store.isAudit === 0 ? '店铺审核中' : '店铺审核未通过'
+			})
+		} else if (store.storeStatus.readInt8(0) === 1) {
+			return ctx.body = Response.fail({
+				message: '店铺已被禁用，请联系客服'
+			})
+		}
+
+		// 查询成功返回 token
+		const payload = {
+			userId: dbuser._id,
+			nickname: dbuser.nickname,
+			avatar: dbuser.avatar,
+			isSeller: dbuser.isBusiness,
+			storeId: store._id,
+			storeName: store.storeName,
+			storeLogo: store.logo
+		}
+		ctx.body = Response.ok({
+			payload: {
+				user: payload,
+				token: tools.getToken(payload, ctx)
+			}
+		})
+		Memory.delete(`rsa:${dbuser._id}`, true)
 	}catch(err) {
 		console.error('/api/users/login', err.message)
 		ctx.status = 400;
