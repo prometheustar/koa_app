@@ -13,17 +13,17 @@ const router = new Router();
 /**
  * 允许跨域，改由 nginx 支持跨域
  */
-app.use(cors({
-    origin: function (ctx) {
-        return "*"; // 允许来自所有域名请求
-        // return 'http://localhost:3001'; // 这样就能只允许 http://localhost:3001 这个域名的请求了
-    },
-    exposeHeaders: ['WWW-Authenticate', 'Server-Authorization'],
-    maxAge: 5,
-    credentials: true,
-    allowMethods: ['GET', 'POST', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization', 'Accept']
-}))
+// app.use(cors({
+//     origin: function (ctx) {
+//         return "*"; // 允许来自所有域名请求
+//         // return 'http://localhost:3001'; // 这样就能只允许 http://localhost:3001 这个域名的请求了
+//     },
+//     exposeHeaders: ['WWW-Authenticate', 'Server-Authorization'],
+//     maxAge: 5,
+//     credentials: true,
+//     allowMethods: ['GET', 'POST', 'OPTIONS'],
+//     allowHeaders: ['Content-Type', 'Authorization', 'Accept']
+// }))
 
 // 服务端判断渲染卖家 React 页面
 const sellerSSR = require('./routes/react-ssr/sellerSSR')

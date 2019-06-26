@@ -11,6 +11,7 @@ module.exports = async (ctx, next) => {
 	if (!/^\/seller/.test(pathname)) {
 		return await next()
 	}
+	console.log(pathname)
 	try {
 		const appString = ReactSSR.renderToString(createApp(null, decodeURIComponent(ctx.request.url), null))
 		ctx.body = template.replace('<!--app-->', appString)
