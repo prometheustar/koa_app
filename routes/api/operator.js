@@ -114,7 +114,14 @@ router.get('/testsms', async ctx => {
 })
 
 
-
+router.get('/ip', async ctx => {
+	ctx.body = {
+		'x-forwarded-for': req.headers['x-forwarded-for'],
+    'req.connection.remoteAddress': req.connection.remoteAddress,
+    'req.socket.remoteAddress': req.socket.remoteAddress,
+    'req.connection.socket.remoteAddress': req.connection.socket.remoteAddress
+	}
+})
 
 // 文件上传测试
 // function readFile(url) {
